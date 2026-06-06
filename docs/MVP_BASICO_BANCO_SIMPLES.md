@@ -45,6 +45,7 @@ CREATE TABLE pasture_areas (
     status TEXT NOT NULL DEFAULT 'descanso',
     last_health_status TEXT NOT NULL DEFAULT 'sem_dados',
     last_biomass_percent REAL,
+    last_estimated_biomass_kg REAL,
     last_measured_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -70,6 +71,7 @@ CREATE TABLE pasture_readings (
     image_path TEXT,
     green_percent REAL,
     biomass_percent REAL,
+    estimated_biomass_kg REAL,
     recent_weather_condition TEXT,
     health_status TEXT NOT NULL,
     measured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -149,14 +151,18 @@ A leitura (`pasture_readings`) classifica uma área. A recomendação (`movement
 
 ### Campo de biomassa
 
-No MVP, use apenas:
+O campo de biomassa deve ter nome explícito.
+
+No MVP, usar:
 
 ```text
 biomass_percent
+estimated_biomass_kg
 ```
 
 ```text
 biomass_percent = biomassa estimada na amostra da foto/leitura
+estimated_biomass_kg = biomassa estimada da área em kg
 ```
 
 ### Dados usados
@@ -176,6 +182,7 @@ Lote:
 Última leitura de cada área:
 - height_cm
 - biomass_percent
+- estimated_biomass_kg
 - green_percent
 - health_status
 ```
@@ -279,13 +286,12 @@ Decisão:
 Mover lote inteiro do Piquete 01 para o Piquete 02.
 ```
 
-### Versão futura com biomassa em kg
+### Versão com biomassa em kg
 
-Se depois o sistema estimar biomassa em `kg/ha`, a decisão pode ficar melhor:
+Se o sistema estimar biomassa total da área em kg, a decisão pode ficar melhor:
 
 ```text
-forragem_total_kg = biomass_kg_per_ha * area_hectares
-forragem_utilizavel_kg = forragem_total_kg * 0.45
+forragem_utilizavel_kg = estimated_biomass_kg * 0.50
 consumo_diario_kg = total_live_weight_kg * 0.025
 dias_suportados = forragem_utilizavel_kg / consumo_diario_kg
 ```
@@ -334,6 +340,8 @@ Saída:
 ```json
 {
   "health_status": "vermelho",
+  "biomass_percent": 52,
+  "estimated_biomass_kg": 4043.52,
   "saved_reading_id": 12,
   "generated_recommendation": {
     "action_type": "mover",
@@ -426,6 +434,7 @@ Ela guarda:
 - altura do pasto;
 - foto enviada;
 - percentual de verde/biomassa estimado;
+- biomassa estimada em kg;
 - condição climática recente;
 - status da área.
 
@@ -435,6 +444,7 @@ Exemplo:
 Piquete 01
 Altura: 19 cm
 Verde estimado: 52%
+Biomassa estimada: 4043 kg
 Clima: chuva leve
 Status: vermelho
 ```
