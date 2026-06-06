@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from openai import OpenAI
 
@@ -366,22 +366,216 @@ def update_area():
         "estimated_biomass_kg": estimated_biomass_kg
     }), 200
 
+# --- Constantes de Simulação ---
+
+GDP_POR_CATEGORIA = {
+    'garrotes': 0.8,
+    'novilhas': 0.7,
+    'vacas': 0.5,
+}
+GDP_DEFAULT = 0.6
+CONSUMO_PERCENT_PV = 0.025       # 2.5% do peso vivo por dia
+EFICIENCIA_PASTEJO = 0.50         # 50% da biomassa é utilizável
+LIMITE_DIAS_SIMULACAO = 365
+LIMITE_DIAS_SEM_TARGET = 180
+DIAS_CRITICOS = 3                 # abaixo disso, precisa mover
+
+
+def _gdp_base(categoria: str | None) -> float:
+    """Retorna o ganho diário de peso base (kg/dia) para a categoria."""
+    if not categoria:
+        return GDP_DEFAULT
+    return GDP_POR_CATEGORIA.get(categoria.lower().strip(), GDP_DEFAULT)
+
+
+def _simular_rotacao(lot, areas_db):
+    """
+    Simula dia-a-dia o rotacionamento do rebanho pelos piquetes.
+
+    Retorna:
+        timeline: lista de eventos (mover, venda, alerta)
+        weight_projection: lista de pontos semanais {date, day_offset, week, average_weight_kg}
+        summary: dict com estimativas gerais
+    """
+    today = datetime.utcnow().date()
+
+    # Estado inicial
+    peso_medio = lot.average_weight_kg
+    head_count = lot.head_count
+    current_area_id = lot.current_area_id
+    target_weight = lot.target_weight_kg
+    gdp_base = _gdp_base(lot.animal_category)
+
+    # Snapshot de biomassa de cada área (não altera o banco)
+    area_map = {}          # id -> {name, biomassa_restante, biomass_percent}
+    for a in areas_db:
+        area_map[a.id] = {
+            'name': a.name,
+            'biomassa_restante': a.last_estimated_biomass_kg if a.last_estimated_biomass_kg else 0.0,
+            'biomass_percent': a.last_biomass_percent if a.last_biomass_percent else 50.0,
+        }
+
+    max_dias = LIMITE_DIAS_SIMULACAO
+    if not target_weight:
+        max_dias = LIMITE_DIAS_SEM_TARGET
+
+    timeline = []
+    weight_projection = []
+    event_id = 0
+    sale_reached = False
+
+    # Registrar ponto inicial (semana 0)
+    weight_projection.append({
+        'date': today.isoformat(),
+        'day_offset': 0,
+        'week': 0,
+        'average_weight_kg': round(peso_medio, 1),
+    })
+
+    for dia in range(max_dias):
+        data_atual = today + timedelta(days=dia)
+
+        # --- Consumo ---
+        peso_vivo_total = head_count * peso_medio
+        consumo_diario = peso_vivo_total * CONSUMO_PERCENT_PV
+
+        # Biomassa disponível na área atual
+        area_info = area_map.get(current_area_id)
+        if area_info:
+            disponivel = area_info['biomassa_restante'] * EFICIENCIA_PASTEJO
+            dias_restantes = disponivel / consumo_diario if consumo_diario > 0 else 999
+        else:
+            dias_restantes = 0
+
+        # --- Precisa mover? ---
+        if dias_restantes < DIAS_CRITICOS:
+            # Buscar melhor área alternativa
+            melhor_area_id = None
+            melhor_dias = 0
+            for aid, ainfo in area_map.items():
+                if aid == current_area_id:
+                    continue
+                disp = ainfo['biomassa_restante'] * EFICIENCIA_PASTEJO
+                d = disp / consumo_diario if consumo_diario > 0 else 0
+                if d > melhor_dias:
+                    melhor_dias = d
+                    melhor_area_id = aid
+
+            if melhor_area_id and melhor_dias >= DIAS_CRITICOS:
+                event_id += 1
+                from_name = area_info['name'] if area_info else 'Desconhecido'
+                to_name = area_map[melhor_area_id]['name']
+                timeline.append({
+                    'id': event_id,
+                    'date': data_atual.isoformat(),
+                    'day_offset': dia,
+                    'action': 'mover',
+                    'from_area_id': current_area_id,
+                    'from_area_name': from_name,
+                    'to_area_id': melhor_area_id,
+                    'to_area_name': to_name,
+                    'message': f'Mover do {from_name} para {to_name}. Pasto atual suporta ~{int(dias_restantes)} dias.',
+                    'reason': f'Biomassa restante insuficiente (< {DIAS_CRITICOS} dias)',
+                })
+                current_area_id = melhor_area_id
+                area_info = area_map[current_area_id]
+            else:
+                # Sem área disponível — alerta
+                if not timeline or timeline[-1].get('action') != 'alerta' or timeline[-1].get('day_offset') != dia:
+                    event_id += 1
+                    timeline.append({
+                        'id': event_id,
+                        'date': data_atual.isoformat(),
+                        'day_offset': dia,
+                        'action': 'alerta',
+                        'from_area_id': current_area_id,
+                        'from_area_name': area_info['name'] if area_info else 'Desconhecido',
+                        'to_area_id': None,
+                        'to_area_name': None,
+                        'message': 'Nenhum piquete com massa suficiente. Avalie suplementação!',
+                        'reason': 'Todas as áreas com biomassa insuficiente',
+                    })
+
+        # --- Deduzir consumo da biomassa ---
+        if area_info:
+            area_info['biomassa_restante'] = max(0, area_info['biomassa_restante'] - consumo_diario)
+
+        # --- Ganho de peso ---
+        bp = area_info['biomass_percent'] if area_info else 50.0
+        gdp_efetivo = gdp_base * (bp / 100.0)
+        peso_medio += gdp_efetivo
+
+        # --- Verificar venda ---
+        if target_weight and peso_medio >= target_weight:
+            event_id += 1
+            timeline.append({
+                'id': event_id,
+                'date': data_atual.isoformat(),
+                'day_offset': dia,
+                'action': 'venda',
+                'from_area_id': current_area_id,
+                'from_area_name': area_info['name'] if area_info else None,
+                'to_area_id': None,
+                'to_area_name': None,
+                'message': f'Rebanho atingiu peso alvo de {target_weight} kg ({head_count} cabeças)',
+                'reason': f'Peso médio projetado: {round(peso_medio, 1)} kg/cabeça',
+            })
+            sale_reached = True
+
+            # Registrar último ponto de peso
+            week_num = dia // 7 + 1
+            weight_projection.append({
+                'date': data_atual.isoformat(),
+                'day_offset': dia,
+                'week': week_num,
+                'average_weight_kg': round(peso_medio, 1),
+            })
+            break
+
+        # --- Registrar ponto semanal ---
+        if dia > 0 and dia % 7 == 0:
+            week_num = dia // 7
+            weight_projection.append({
+                'date': data_atual.isoformat(),
+                'day_offset': dia,
+                'week': week_num,
+                'average_weight_kg': round(peso_medio, 1),
+            })
+
+    # --- Summary ---
+    last_day = (len(weight_projection) - 1) * 7 if weight_projection else 0
+    # Pegar o último dia real da simulação
+    if timeline:
+        last_event = timeline[-1]
+        sim_end_day = last_event['day_offset']
+    elif weight_projection:
+        sim_end_day = weight_projection[-1]['day_offset']
+    else:
+        sim_end_day = 0
+
+    total_moves = sum(1 for e in timeline if e['action'] == 'mover')
+
+    summary = {
+        'estimated_sale_date': (today + timedelta(days=sim_end_day)).isoformat() if sale_reached else None,
+        'days_to_sale': sim_end_day if sale_reached else None,
+        'estimated_final_weight_kg': round(peso_medio, 1),
+        'total_moves': total_moves,
+        'sale_reached': sale_reached,
+        'simulation_days': sim_end_day,
+    }
+
+    return timeline, weight_projection, summary
+
+
 @app.route('/api/evaluation', methods=['GET'])
 @jwt_required()
 def evaluation():
     current_user_id = get_jwt_identity()
-    
+
     # Lot info
     lot = CattleLot.query.filter_by(user_id=current_user_id).first()
-    lot_data = None
-    if lot:
-        lot_data = {
-            "animal_category": lot.animal_category,
-            "head_count": lot.head_count,
-            "average_weight_kg": lot.average_weight_kg,
-            "total_live_weight_kg": lot.head_count * lot.average_weight_kg,
-            "current_area_id": lot.current_area_id
-        }
+    if not lot:
+        return jsonify({"msg": "Nenhum lote encontrado"}), 404
 
     # Areas
     areas = PastureArea.query.filter_by(user_id=current_user_id).all()
@@ -394,101 +588,34 @@ def evaluation():
         "last_biomass_percent": a.last_biomass_percent
     } for a in areas]
 
-    recommendations = []
-    if lot and lot.current_area_id:
-        current_area = PastureArea.query.get(lot.current_area_id)
-        if current_area:
-            action = 'manter'
-            message = 'Manter na área atual.'
-            target_area_id = None
-            
-            estimated_biomass_kg = current_area.last_estimated_biomass_kg
-            
-            if estimated_biomass_kg is not None:
-                # A biomassa estimada representa a Matéria Seca total em kg.
-                # Consumo diário do lote estimado em 2.5% do peso vivo.
-                total_live_weight_kg = lot.head_count * lot.average_weight_kg
-                daily_intake = total_live_weight_kg * 0.025
-                
-                # Assumimos uma eficiência de pastejo de 50% (metade fica de resíduo para a planta rebrotar)
-                available_intake = estimated_biomass_kg * 0.5
-                
-                days_remaining = available_intake / daily_intake if daily_intake > 0 else 999
-                
-                if days_remaining < 3:
-                    # Crítico: Menos de 3 dias de pasto, precisa mover!
-                    candidate_areas = PastureArea.query.filter(
-                        PastureArea.user_id == current_user_id,
-                        PastureArea.id != current_area.id
-                    ).order_by(PastureArea.id.asc()).all()
-                    
-                    best_target = None
-                    for area in candidate_areas:
-                        if area.last_estimated_biomass_kg is not None:
-                            area_days = (area.last_estimated_biomass_kg * 0.5) / daily_intake if daily_intake > 0 else 999
-                            if area_days >= 7:  # A próxima área precisa ter pelo menos 7 dias de comida
-                                best_target = area
-                                break
-                    
-                    if best_target:
-                        action = 'mover'
-                        target_area_id = best_target.id
-                        message = f'Mover do {current_area.name} para o {best_target.name}. Pasto atual suporta apenas ~{int(days_remaining)} dias.'
-                    else:
-                        action = 'medir'
-                        message = f'Pasto crítico (~{int(days_remaining)} dias), mas nenhum piquete na rotação tem massa suficiente. Avalie suplementar!'
-                        
-                elif days_remaining < 7:
-                    # Atenção: Pasto acabando na próxima semana
-                    action = 'medir'
-                    message = f'Atenção: restam aprox. {int(days_remaining)} dias de pasto útil. Planeje a rotação e meça os próximos piquetes.'
-                else:
-                    # Excelente: Pasto farto
-                    action = 'manter'
-                    message = f'Manter na área. Pasto estimado para mais {int(days_remaining)} dias com o lote atual.'
-            else:
-                action = 'medir'
-                message = 'Sem dados recentes da área atual. Atualize a leitura com uma foto.'
+    # Lot data for response
+    current_area = PastureArea.query.get(lot.current_area_id) if lot.current_area_id else None
+    lot_data = {
+        "animal_category": lot.animal_category,
+        "head_count": lot.head_count,
+        "average_weight_kg": lot.average_weight_kg,
+        "target_weight_kg": lot.target_weight_kg,
+        "total_live_weight_kg": lot.head_count * lot.average_weight_kg,
+        "current_area_id": lot.current_area_id,
+        "current_area_name": current_area.name if current_area else None
+    }
 
-            latest_recommendation = MovementRecommendation.query.filter_by(
-                user_id=current_user_id,
-                cattle_lot_id=lot.id
-            ).order_by(MovementRecommendation.created_at.desc()).first()
+    # Simulação
+    timeline = []
+    weight_projection = []
+    summary = {}
 
-            should_save_recommendation = (
-                latest_recommendation is None or
-                latest_recommendation.action_type != action or
-                latest_recommendation.from_area_id != current_area.id or
-                latest_recommendation.to_area_id != target_area_id or
-                latest_recommendation.message != message
-            )
-
-            if should_save_recommendation:
-                latest_recommendation = MovementRecommendation(
-                    user_id=current_user_id,
-                    cattle_lot_id=lot.id,
-                    from_area_id=current_area.id,
-                    to_area_id=target_area_id,
-                    action_type=action,
-                    message=message
-                )
-                db.session.add(latest_recommendation)
-                db.session.commit()
-
-            recommendations.append({
-                "id": latest_recommendation.id if latest_recommendation else None,
-                "date": datetime.utcnow().isoformat(),
-                "action": action,
-                "message": message,
-                "from_area_id": current_area.id,
-                "to_area_id": target_area_id
-            })
+    if lot.current_area_id and areas:
+        timeline, weight_projection, summary = _simular_rotacao(lot, areas)
 
     return jsonify({
         "lot": lot_data,
         "areas": areas_list,
-        "last_recommendations": recommendations
+        "timeline": timeline,
+        "weight_projection": weight_projection,
+        "summary": summary
     }), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
