@@ -2,11 +2,16 @@ import { useState } from "react";
 import { LayoutDashboard, CalendarRange, Leaf, Bell, Settings } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
+import { Login } from "./components/Login";
 
-type Screen = "dashboard" | "planning";
+type Screen = "login" | "dashboard" | "planning";
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("dashboard");
+  const [screen, setScreen] = useState<Screen>("login");
+
+  if (screen === "login") {
+    return <Login onLogin={() => setScreen("dashboard")} />;
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f7f9f4]">
