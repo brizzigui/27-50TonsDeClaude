@@ -105,12 +105,21 @@ export default function App() {
           <button 
             onClick={() => setSettingsOpen(true)}
             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+            title="Configurações"
           >
             <Settings size={16} className="text-gray-500" />
           </button>
           <button 
+            onClick={handleLogout}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-red-500 transition-colors cursor-pointer ml-1"
+            title="Sair"
+          >
+            <LogOut size={16} />
+          </button>
+          <button 
             onClick={() => setProfileOpen(true)}
             className="ml-1 sm:ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
+            title="Perfil"
           >
             <span className="text-white text-xs">{avatarInitials}</span>
           </button>
