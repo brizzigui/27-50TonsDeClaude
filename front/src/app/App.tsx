@@ -3,11 +3,13 @@ import { LayoutDashboard, CalendarRange, Leaf, Bell, Settings } from "lucide-rea
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
+import { UserProfile } from "./components/UserProfile";
 
 type Screen = "login" | "dashboard" | "planning";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("login");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   if (screen === "login") {
     return <Login onLogin={() => setScreen("dashboard")} />;
@@ -67,9 +69,12 @@ export default function App() {
           <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors hidden sm:flex">
             <Settings size={16} className="text-gray-500" />
           </button>
-          <div className="ml-1 sm:ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center">
+          <button 
+            onClick={() => setProfileOpen(true)}
+            className="ml-1 sm:ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
+          >
             <span className="text-white text-xs">JV</span>
-          </div>
+          </button>
         </div>
       </header>
 
@@ -77,6 +82,9 @@ export default function App() {
       <main className="flex-1 overflow-hidden">
         {screen === "dashboard" ? <Dashboard /> : <Planning />}
       </main>
+
+      {/* User Profile Modal */}
+      <UserProfile open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
   );
 }
