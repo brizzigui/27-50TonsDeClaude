@@ -29,8 +29,8 @@ const statusConfig = {
 };
 
 function biomassColor(v: number) {
-  if (v >= 70) return "bg-emerald-500";
-  if (v >= 40) return "bg-amber-400";
+  if (v >= 2000) return "bg-emerald-500";
+  if (v >= 1200) return "bg-amber-400";
   return "bg-red-500";
 }
 
@@ -63,8 +63,9 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
           subtitle = parts[1];
         }
 
-        const biomass = a.last_biomass_percent ?? 0;
-        const status = biomass >= 70 ? "green" : biomass >= 40 ? "yellow" : "red";
+        const biomassTotal = a.last_estimated_biomass_kg ?? 0;
+        const biomass_kg_ha = a.area_hectares > 0 ? biomassTotal / a.area_hectares : 0;
+        const status = biomass_kg_ha >= 2000 ? "green" : biomass_kg_ha >= 1200 ? "yellow" : "red";
         
         let lastEval = "Sem dados";
         if (a.last_measured_at) {
@@ -83,7 +84,7 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
           lastEval,
           cattle: hasLot ? data.lot.head_count : 0,
           category: hasLot ? `${data.lot.animal_category} ${data.lot.average_weight_kg}kg` : "",
-          biomass: Math.round(biomass),
+          biomass: Math.round(biomass_kg_ha),
           capacity: Math.round(a.area_hectares * 3.5), // Estimativa simples para o front
         };
       });
@@ -127,7 +128,6 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
       const payload = {
         area_id: selected.id,
         height_cm: parseFloat(height),
-        green_percent: selected.biomass > 0 ? selected.biomass : 50,
         image_base64: photoPreview, // Já vem no formato data:image/... base64
         recent_weather_condition: "Bom" // Mock ou capturar no form depois
       };
@@ -230,11 +230,11 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
                   <div className={`h-1.5 rounded-full w-full ${isSelected ? "bg-green-100" : "bg-gray-100"}`}>
                     <div
                       className={`h-1.5 rounded-full transition-all ${biomassColor(p.biomass)}`}
-                      style={{ width: `${p.biomass}%` }}
+                      style={{ width: `${Math.min(100, (p.biomass / 4200) * 100)}%` }}
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">{p.biomass}% biomassa</p>
+                <p className="text-[10px] text-gray-400 mt-1">{p.biomass} kg/ha biomassa</p>
               </button>
             );
           })}
@@ -373,10 +373,10 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
             </div>
             <div className="sm:text-right">
               <p className={`text-2xl ${biomassColor(selected.biomass).replace("bg-", "text-")}`}>
-                {selected.biomass}%
+                {selected.biomass} kg/ha
               </p>
               <p className="text-xs text-gray-400">
-                {selected.biomass >= 70 ? "Disponível para pastejo" : selected.biomass >= 40 ? "Uso controlado" : "Necessita descanso"}
+                {selected.biomass >= 2000 ? "Disponível para pastejo" : selected.biomass >= 1200 ? "Uso controlado" : "Necessita descanso"}
               </p>
             </div>
           </div>
@@ -385,25 +385,25 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
           <div className="relative h-5 rounded-full bg-gray-100 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-700 ${biomassColor(selected.biomass)}`}
-              style={{ width: `${selected.biomass}%` }}
+              style={{ width: `${Math.min(100, (selected.biomass / 4200) * 100)}%` }}
             />
             {/* Marcadores de referência */}
-            <div className="absolute top-0 left-[40%] h-full w-px bg-white/60" />
-            <div className="absolute top-0 left-[70%] h-full w-px bg-white/60" />
+            <div className="absolute top-0 left-[28.5%] h-full w-px bg-white/60" /> {/* 1200 / 4200 = ~28.5% */}
+            <div className="absolute top-0 left-[47.6%] h-full w-px bg-white/60" /> {/* 2000 / 4200 = ~47.6% */}
           </div>
           <div className="flex justify-between text-xs text-gray-400 mt-1.5">
-            <span>0%</span>
-            <span className="text-amber-500 hidden sm:inline">40% — Atenção</span>
-            <span className="text-amber-500 sm:hidden">40%</span>
-            <span className="text-emerald-600 hidden sm:inline">70% — Ideal</span>
-            <span className="text-emerald-600 sm:hidden">70%</span>
-            <span>100%</span>
+            <span>0</span>
+            <span className="text-amber-500 hidden sm:inline">1.200 — Atenção</span>
+            <span className="text-amber-500 sm:hidden">1.200</span>
+            <span className="text-emerald-600 hidden sm:inline">2.000 — Ideal</span>
+            <span className="text-emerald-600 sm:hidden">2.000</span>
+            <span>4.200+ kg/ha</span>
           </div>
 
           {/* Estimativa em kg/ha */}
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { label: "Massa Atual", value: `${Math.round(selected.biomass * 42)} kg/ha`, sub: "forragem verde" },
+              { label: "Massa Atual", value: `${selected.biomass} kg/ha`, sub: "forragem verde estimada" },
               { label: "Ponto de Entrada", value: "2.500 kg/ha", sub: "altura 25-30cm" },
               { label: "Ponto de Saída", value: "1.200 kg/ha", sub: "altura 10-15cm" },
             ].map((item) => (
