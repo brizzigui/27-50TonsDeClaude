@@ -4,7 +4,7 @@
 
 Este documento organiza os conceitos técnicos necessários para modelar um sistema de apoio ao manejo de pastagens, com foco inicial em pastagens plantadas e bovinos de corte em fase de engorda.
 
-O MVP deve ser simples: o produtor cadastra áreas de pastagem, cadastra um único rebanho/lote e o sistema recomenda a rotação desse rebanho entre as áreas disponíveis. A lógica inicial não divide o rebanho entre várias áreas; ela trabalha com uma área ocupada por vez, áreas em descanso e uma próxima área sugerida.
+O MVP deve ser simples: o produtor cadastra áreas de pastagem, cadastra um único lote de gado e o sistema recomenda a rotação desse lote entre as áreas disponíveis. A lógica inicial não divide o lote entre várias áreas; ela trabalha com uma área ocupada por vez, áreas em descanso e uma próxima área sugerida.
 
 Mesmo tratando inicialmente apenas o manejo rotacionado com rebanho único, a modelagem deve permitir a inclusão futura de pastejo contínuo, Voisin, diferido, divisão de rebanho e outras estratégias.
 
@@ -370,22 +370,147 @@ A decisão central do sistema será: o rebanho permanece na área atual, deve se
 16. Quando o produtor executa a movimentação, o sistema registra saída da área anterior e entrada na nova área.
 17. O produtor repete medições ao longo do tempo, pois clima, geada, chuva, barro e crescimento real alteram a disponibilidade.
 
-## 6. Modelo conceitual do banco SQLite
+## 6. Exemplos práticos do MVP
+
+### 6.1 Exemplo de cadastro inicial
+
+Produtor informa três áreas e um lote único:
+
+```text
+Área 1: Piquete 01 - Baixada
+- Tamanho: 12 ha
+- Pastagem: azevém
+- Status inicial: ocupado
+
+Área 2: Piquete 02 - Coxilha
+- Tamanho: 10 ha
+- Pastagem: azevém
+- Status inicial: descanso
+
+Área 3: Piquete 03 - Fundo
+- Tamanho: 8 ha
+- Pastagem: aveia
+- Status inicial: descanso
+
+Lote:
+- Categoria: garrotes
+- Quantidade: 35 cabeças
+- Peso médio: 320 kg
+- Peso vivo total calculado: 11.200 kg
+```
+
+No banco, isso vira um `cattle_group` e várias `pasture_areas`. Na interface, o produtor só vê "Lote de garrotes" e "Piquetes".
+
+### 6.2 Exemplo de atualização de leitura
+
+O produtor entra no card do Piquete 01 e clica em "Atualizar Leitura".
+
+```text
+Altura média do pasto: 19 cm
+Quantidade atual: 35 cabeças
+Peso médio: 320 kg
+Clima recente: chuva leve
+Foto: piquete01_hoje.jpg
+```
+
+O sistema registra a medição, roda a leitura visual da imagem e recalcula o plano.
+
+### 6.3 Exemplo de recomendação para mover
+
+```text
+Resultado:
+- Piquete 01 está perto da altura de saída.
+- Piquete 02 já está com altura e biomassa suficientes.
+- O lote não será dividido.
+
+Recomendação:
+Mover o lote inteiro do Piquete 01 para o Piquete 02 hoje.
+
+Motivo:
+Piquete 01 precisa descansar e Piquete 02 está pronto para entrada.
+```
+
+### 6.4 Exemplo de recomendação para permanecer
+
+```text
+Resultado:
+- Piquete 01 ainda está acima da altura de saída.
+- Próximo piquete ainda não recuperou o suficiente.
+
+Recomendação:
+Manter o lote no Piquete 01 por mais 2 dias e medir novamente.
+
+Motivo:
+A área atual ainda suporta o lote e a próxima área ainda precisa descansar.
+```
+
+### 6.5 Exemplo de timeline
+
+```text
+HOJE
+Mover lote do Piquete 01 para o Piquete 02.
+Motivo: Piquete 01 atingiu altura de saída.
+
+EM 2 DIAS
+Atualizar leitura do Piquete 02.
+Motivo: confirmar consumo e evitar superpastejo.
+
+EM 7 DIAS
+Verificar Piquete 03.
+Motivo: possível próxima área da rotação.
+```
+
+### 6.6 Exemplo de troca futura de método
+
+Se a equipe decidir abandonar o rotacionado no futuro e testar pastejo contínuo, o cadastro de áreas, lote, medições e avaliações continua útil. A mudança principal fica no método do plano:
+
+```text
+Antes:
+method = rotational_single_lot
+Decisão = mover lote entre áreas
+
+Depois:
+method = continuous
+Decisão = manter, aumentar ou reduzir lotação em uma área
+```
+
+Esse é o motivo de manter `grazing_methods` e `config_json`: eles deixam o MVP simples para o usuário, mas evitam travar o sistema em uma única metodologia.
+
+### 6.7 O que o usuário realmente vê
+
+Mesmo que o banco tenha tabelas técnicas, a interface do MVP deve esconder quase tudo. O usuário não precisa escolher "estratégia", "método", "alocação" ou "plano" em termos técnicos.
+
+Fluxo ideal na tela:
+
+```text
+1. Cadastrar piquetes
+2. Cadastrar lote
+3. Dizer onde o lote está agora
+4. Atualizar leitura com foto e altura
+5. Ver recomendação: mover, manter ou medir novamente
+```
+
+O sistema pode criar automaticamente o plano de rotação usando o método `rotational_single_lot`. Se depois a equipe quiser testar outro método, troca a configuração no backend sem mudar o fluxo principal do produtor.
+
+## 7. Modelo conceitual do banco SQLite
 
 O banco deve ser simples para o hackathon, mas extensível. A recomendação é evitar colocar regras específicas de cada manejo diretamente na tabela de pastagem. O ideal é separar áreas, lotes, medições, métodos e planos.
 
 SQLite trabalha bem com os tipos `INTEGER`, `REAL` e `TEXT`. Datas devem ser salvas como `TEXT` no formato ISO 8601, por exemplo `2026-06-05T23:30:00-03:00`.
 
-Para o MVP rotacionado, a regra de modelagem é:
+Para o MVP rotacionado, a regra de modelagem deve ser simples:
 
 - `pasture_areas` representa a unidade que pode receber o rebanho, seja campo inteiro, área plantada ou piquete.
-- `grazing_plans` pertence a uma propriedade, a um rebanho e a um método de manejo.
+- `cattle_groups` representa o lote de gado que se movimenta junto.
+- `grazing_plans` pertence a uma propriedade, a um lote e a um método de manejo.
 - `grazing_plan_areas` define quais áreas entram no plano e em qual sequência.
-- `herd_allocations` registra onde o rebanho está ou esteve; no MVP deve existir apenas uma alocação ativa por rebanho.
-- `rotation_schedule` guarda a agenda planejada e executada da rotação.
+- `grazing_plans.current_pasture_area_id` registra onde o lote está agora.
+- `rotation_schedule` guarda a agenda planejada e executada da rotação, quando existir previsão.
 - `recommendations` guarda a decisão calculada pelo motor de manejo.
 
-### 6.1 Tabelas principais
+Para o usuário, a palavra principal deve ser **lote**, não `herd`. O produtor informa "35 garrotes de 320 kg", e o sistema calcula o peso vivo total. Termos como `cattle_groups` ou `grazing_plans` ficam apenas no banco/API.
+
+### 7.1 Tabelas principais
 
 ```sql
 CREATE TABLE users (
@@ -430,7 +555,7 @@ CREATE TABLE grazing_methods (
     description TEXT
 );
 
-CREATE TABLE herds (
+CREATE TABLE cattle_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     farm_id INTEGER NOT NULL,
     name TEXT NOT NULL,
@@ -443,32 +568,20 @@ CREATE TABLE herds (
     FOREIGN KEY (farm_id) REFERENCES farms(id)
 );
 
-CREATE TABLE herd_allocations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    herd_id INTEGER NOT NULL,
-    pasture_area_id INTEGER NOT NULL,
-    head_count INTEGER,
-    live_weight_kg REAL NOT NULL,
-    start_date TEXT NOT NULL,
-    end_date TEXT,
-    status TEXT NOT NULL DEFAULT 'active',
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (herd_id) REFERENCES herds(id),
-    FOREIGN KEY (pasture_area_id) REFERENCES pasture_areas(id)
-);
-
 CREATE TABLE grazing_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     farm_id INTEGER NOT NULL,
-    herd_id INTEGER NOT NULL,
+    cattle_group_id INTEGER NOT NULL,
     grazing_method_id INTEGER NOT NULL,
+    current_pasture_area_id INTEGER,
     start_date TEXT NOT NULL,
     end_date TEXT,
     status TEXT NOT NULL DEFAULT 'active',
     config_json TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (farm_id) REFERENCES farms(id),
-    FOREIGN KEY (herd_id) REFERENCES herds(id),
+    FOREIGN KEY (cattle_group_id) REFERENCES cattle_groups(id),
+    FOREIGN KEY (current_pasture_area_id) REFERENCES pasture_areas(id),
     FOREIGN KEY (grazing_method_id) REFERENCES grazing_methods(id)
 );
 
@@ -522,7 +635,6 @@ CREATE TABLE recommendations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pasture_area_id INTEGER,
     grazing_plan_id INTEGER,
-    herd_allocation_id INTEGER,
     rotation_schedule_id INTEGER,
     generated_at TEXT NOT NULL,
     severity TEXT NOT NULL,
@@ -533,7 +645,6 @@ CREATE TABLE recommendations (
     calculation_snapshot_json TEXT,
     FOREIGN KEY (pasture_area_id) REFERENCES pasture_areas(id),
     FOREIGN KEY (grazing_plan_id) REFERENCES grazing_plans(id),
-    FOREIGN KEY (herd_allocation_id) REFERENCES herd_allocations(id),
     FOREIGN KEY (rotation_schedule_id) REFERENCES rotation_schedule(id)
 );
 
@@ -550,7 +661,7 @@ CREATE TABLE evaluation_snapshots (
 );
 ```
 
-### 6.2 Tabelas preparadas para detalhamento futuro
+### 7.2 Tabelas preparadas para detalhamento futuro
 
 A rotação do MVP pode usar `pasture_areas` diretamente como unidades de pastejo. Se futuramente a equipe quiser representar uma área maior dividida em piquetes internos, a tabela `paddocks` pode ser adicionada sem alterar a lógica principal do plano.
 
@@ -570,7 +681,7 @@ CREATE TABLE paddocks (
 CREATE TABLE grazing_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     grazing_plan_id INTEGER NOT NULL,
-    herd_id INTEGER NOT NULL,
+    cattle_group_id INTEGER NOT NULL,
     from_pasture_area_id INTEGER,
     to_pasture_area_id INTEGER,
     paddock_id INTEGER,
@@ -580,29 +691,29 @@ CREATE TABLE grazing_events (
     live_weight_kg REAL,
     notes TEXT,
     FOREIGN KEY (grazing_plan_id) REFERENCES grazing_plans(id),
-    FOREIGN KEY (herd_id) REFERENCES herds(id),
+    FOREIGN KEY (cattle_group_id) REFERENCES cattle_groups(id),
     FOREIGN KEY (from_pasture_area_id) REFERENCES pasture_areas(id),
     FOREIGN KEY (to_pasture_area_id) REFERENCES pasture_areas(id),
     FOREIGN KEY (paddock_id) REFERENCES paddocks(id)
 );
 ```
 
-### 6.3 Seeds iniciais
+### 7.3 Seeds iniciais
 
 ```sql
 INSERT INTO grazing_methods (code, name, description) VALUES
-('rotational_single_herd', 'Pastejo rotacionado com rebanho único', 'Um único rebanho é movimentado inteiro entre áreas em sequência.'),
+('rotational_single_lot', 'Pastejo rotacionado com lote único', 'Um único lote é movimentado inteiro entre áreas em sequência.'),
 ('continuous', 'Pastejo contínuo monitorado', 'Animais permanecem na área e a lotação é ajustada por medições periódicas.'),
-('rotational_split_herd', 'Pastejo rotacionado com divisão de rebanho', 'Lotes ou partes do rebanho podem ocupar áreas diferentes.'),
+('rotational_split_lot', 'Pastejo rotacionado com divisão de lotes', 'Lotes ou partes do rebanho podem ocupar áreas diferentes.'),
 ('voisin', 'Pastoreio Racional Voisin', 'Rotação intensiva com descanso variável conforme recuperação da pastagem.'),
 ('deferred', 'Pastejo diferido', 'Área é vedada para acumular forragem e usada posteriormente.');
 ```
 
-## 7. Configurações por método
+## 8. Configurações por método
 
 O campo `config_json` de `grazing_plans` permite que cada método tenha parâmetros próprios sem mudar o banco toda vez.
 
-### 7.1 Configuração do MVP: rotacionado com rebanho único
+### 8.1 Configuração do MVP: rotacionado com lote único
 
 ```json
 {
@@ -618,7 +729,7 @@ O campo `config_json` de `grazing_plans` permite que cada método tenha parâmet
 }
 ```
 
-### 7.2 Configuração futura: pastejo contínuo
+### 8.2 Configuração futura: pastejo contínuo
 
 ```json
 {
@@ -631,7 +742,7 @@ O campo `config_json` de `grazing_plans` permite que cada método tenha parâmet
 }
 ```
 
-### 7.3 Configuração futura: pastejo diferido
+### 8.3 Configuração futura: pastejo diferido
 
 ```json
 {
@@ -642,15 +753,15 @@ O campo `config_json` de `grazing_plans` permite que cada método tenha parâmet
 }
 ```
 
-## 8. Estratégia de cálculo e arquitetura
+## 9. Estratégia de cálculo e arquitetura
 
 O backend deve tratar cada método como uma estratégia. Assim, o sistema implementa apenas uma estratégia agora e adiciona outras depois.
 
 ```text
 GrazingStrategy
-├── SingleHerdRotationalStrategy
+├── SingleLotRotationalStrategy
 ├── ContinuousGrazingStrategy
-├── SplitHerdRotationalStrategy
+├── SplitLotRotationalStrategy
 ├── VoisinGrazingStrategy
 └── DeferredGrazingStrategy
 ```
@@ -665,7 +776,7 @@ Cada estratégia deve implementar:
 - definição da próxima medição;
 - geração de eventos futuros, quando aplicável.
 
-No MVP, `SingleHerdRotationalStrategy` deve respeitar três restrições:
+No MVP, `SingleLotRotationalStrategy` deve respeitar três restrições:
 
 - existe apenas um rebanho principal no plano;
 - o rebanho ocupa uma única área por vez;
@@ -673,7 +784,7 @@ No MVP, `SingleHerdRotationalStrategy` deve respeitar três restrições:
 
 Essa separação permite trocar o método depois sem alterar telas principais, tabelas de medição ou cadastro de área. A mudança fica concentrada em qual estratégia lê o `config_json` e gera recomendações.
 
-## 9. Endpoints sugeridos
+## 10. Endpoints sugeridos
 
 ```text
 POST /api/auth/register
@@ -686,8 +797,8 @@ GET  /api/pasture-areas
 POST /api/pasture-areas
 GET  /api/pasture-areas/:id
 
-POST /api/herds
-GET  /api/herds
+POST /api/cattle-groups
+GET  /api/cattle-groups
 
 POST /api/grazing-plans
 GET  /api/grazing-plans/:id
@@ -749,7 +860,7 @@ Saída:
 ```json
 {
   "grazing_plan_id": 1,
-  "herd_id": 1,
+  "cattle_group_id": 1,
   "current_pasture_area_id": 1,
   "next_pasture_area_id": 2,
   "action": "move",
@@ -788,8 +899,8 @@ Processamento esperado:
 1. Salvar a imagem em disco ou storage local.
 2. Rodar módulo de leitura visual ou LLM para extrair parâmetros visíveis da pastagem.
 3. Registrar uma linha em `pasture_measurements`.
-4. Atualizar `herds` ou `herd_allocations` se quantidade/peso tiverem mudado.
-5. Executar `SingleHerdRotationalStrategy`.
+4. Atualizar `cattle_groups` se quantidade ou peso médio tiverem mudado.
+5. Executar `SingleLotRotationalStrategy`.
 6. Salvar recomendação e `evaluation_snapshots`.
 7. Retornar resumo da próxima ação.
 
@@ -822,7 +933,7 @@ Esse endpoint deve retornar um JSON completo para a tela principal, evitando que
 - data estimada de venda ou ponto de saída;
 - justificativas das recomendações.
 
-## 10. Interface, dashboard e pitch
+## 11. Interface, dashboard e pitch
 
 O documento da ideia atualizado traz pontos importantes para a demonstração. Eles devem ser tratados como requisitos de interface do MVP.
 
@@ -887,7 +998,7 @@ O protótipo deve deixar explícito:
 - sustentabilidade: semáforo reduz risco de degradação do solo;
 - apresentação: mostrar a transição entre card, atualização por foto, timeline e gráfico.
 
-## 11. Cuidados técnicos e agronômicos
+## 12. Cuidados técnicos e agronômicos
 
 - O sistema deve apoiar a decisão, não substituir técnico, agrônomo ou zootecnista.
 - Alturas ideais não devem ser fixas para todas as pastagens.
@@ -898,7 +1009,7 @@ O protótipo deve deixar explícito:
 - Em engorda, superlotar pode aumentar produção por hectare no curto prazo, mas reduzir ganho individual e degradar a pastagem.
 - O dashboard deve mostrar nível de confiança da estimativa.
 
-## 12. Recomendação final para o hackathon
+## 13. Recomendação final para o hackathon
 
 Para a apresentação, a narrativa mais forte é:
 
@@ -910,7 +1021,7 @@ e recomenda quando mover o rebanho inteiro para a próxima área pronta.
 
 Isso resolve um problema real sem tentar dividir automaticamente os animais entre áreas. A arquitetura, porém, já fica preparada para evoluir para pastejo contínuo, divisão de rebanho, Voisin e diferido por meio de métodos, planos, áreas de rotação e eventos.
 
-## 13. Fontes técnicas consultadas
+## 14. Fontes técnicas consultadas
 
 - Embrapa Gado de Corte: Sistemas de pastejo. Disponível em: https://old.cnpgc.embrapa.br/publicacoes/doc/doc74/sistemas.html
 - Embrapa: Guia prático para implantação de sistemas de pastejo rotacionados para gado de corte. Disponível em: https://www.embrapa.br/busca-de-publicacoes/-/publicacao/47246/guia-pratico-para-a-implantacao-de-sistemas-de-pastejo-rotacionados-para-gado-de-corte
