@@ -436,7 +436,7 @@ export function Dashboard() {
 
                 {photoPreview ? (
                   <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                    <img src={photoPreview} alt="Preview" className="w-full h-48 object-cover" />
+                    <img src={photoPreview} alt="Pré-visualização" className="w-full h-48 object-cover" />
                     <button
                       onClick={() => { setPhoto(null); setPhotoPreview(null); }}
                       className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
