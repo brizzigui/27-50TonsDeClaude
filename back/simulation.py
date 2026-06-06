@@ -34,9 +34,27 @@ BIOMASSA_SAIDA         = 1200.0  # sinal de saída programada
 BIOMASSA_CRITICA       =  800.0  # saída forçada — abaixo disso o animal perde peso
 BIOMASSA_MAX_HA        = 4000.0  # teto de acúmulo
 
-# Crescimento diário (kg MS / ha / dia)
+# Crescimento diário padrão (kg MS / ha / dia) - Usado se o capim for desconhecido
 CRESCIMENTO_EM_DESCANSO  = 40.0
 CRESCIMENTO_OCUPADO      = 12.0  # supressão pelo pastejo
+
+PRODUTIVIDADE_CAPIM = {
+    "mombaça": {"descanso": 55.0, "ocupado": 18.0, "gdp_mult": 1.15},
+    "tanzânia": {"descanso": 55.0, "ocupado": 18.0, "gdp_mult": 1.15},
+    "braquiária": {"descanso": 35.0, "ocupado": 10.0, "gdp_mult": 1.0},
+    "marandu": {"descanso": 35.0, "ocupado": 10.0, "gdp_mult": 1.0},
+    "tifton": {"descanso": 30.0, "ocupado": 8.0, "gdp_mult": 0.9},
+    "misto": {"descanso": 40.0, "ocupado": 12.0, "gdp_mult": 1.0},
+}
+
+def _get_grass_config(grass_type: str) -> dict:
+    if not grass_type:
+        return PRODUTIVIDADE_CAPIM["misto"]
+    gt = grass_type.lower()
+    for k, v in PRODUTIVIDADE_CAPIM.items():
+        if k in gt:
+            return v
+    return PRODUTIVIDADE_CAPIM["misto"]
 
 # Ganho de peso
 BIOMASSA_PLENO_GDP     = 2000.0  # acima disso o GDP é integral
@@ -99,6 +117,7 @@ class _AreaState:
     name: str
     area_hectares: float
     biomassa_restante: float
+    grass_type: str = "Misto"
 
     @property
     def biomassa_ha(self) -> float:
@@ -107,7 +126,8 @@ class _AreaState:
         return self.biomassa_restante / self.area_hectares
 
     def crescer(self, ocupada: bool) -> None:
-        taxa = CRESCIMENTO_OCUPADO if ocupada else CRESCIMENTO_EM_DESCANSO
+        cfg = _get_grass_config(self.grass_type)
+        taxa = cfg["ocupado"] if ocupada else cfg["descanso"]
         self.biomassa_restante = min(
             self.biomassa_restante + taxa * self.area_hectares,
             BIOMASSA_MAX_HA * self.area_hectares,
@@ -317,6 +337,7 @@ def simular_rotacao(lot, areas_db) -> tuple[list, list, dict]:
             name=a.name,
             area_hectares=float(a.area_hectares or 0),
             biomassa_restante=float(a.last_estimated_biomass_kg or 0),
+            grass_type=a.grass_type or "Misto",
         )
         for a in areas_db
     }
@@ -365,7 +386,8 @@ def simular_rotacao(lot, areas_db) -> tuple[list, list, dict]:
 
         # 4. Ganho de peso
         b_ha = area_atual.biomassa_ha if area_atual else 0.0
-        state.peso_medio += _gdp_efetivo(state.gdp_base, b_ha)
+        gdp_mult = _get_grass_config(area_atual.grass_type)["gdp_mult"] if area_atual else 1.0
+        state.peso_medio += _gdp_efetivo(state.gdp_base * gdp_mult, b_ha)
         state.dias_no_piquete += 1
 
         print(dia, state.target_weight, state.peso_medio)

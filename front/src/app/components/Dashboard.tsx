@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import api from "../api";
 import {
   MapPin, Leaf, Clock, Users, Camera, Upload,
-  CheckCircle, AlertCircle, XCircle, RefreshCw, X, Ruler, ChevronDown, Plus
+  CheckCircle, AlertCircle, XCircle, RefreshCw, X, Ruler, ChevronDown, Zap
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
@@ -17,6 +17,7 @@ interface Piquete {
   status: "green" | "yellow" | "red";
   lastEval: string;
   cattle: number;
+  averageWeight: number;
   category: string;
   biomass: number;
   capacity: number;
@@ -53,6 +54,16 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // "What to do today" summary
+  const [actionSummary, setActionSummary] = useState<{
+    currentAreaName: string;
+    biomassKgHa: number;
+    nextAction: string | null;
+    nextActionDays: number | null;
+    nextAreaName: string | null;
+    actionType: "mover" | "venda" | "alerta" | null;
+  } | null>(null);
+
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
@@ -86,6 +97,7 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
           status,
           lastEval,
           cattle: hasLot ? data.lot.head_count : 0,
+          averageWeight: hasLot ? data.lot.average_weight_kg : 0,
           category: hasLot ? `${data.lot.animal_category} ${data.lot.average_weight_kg}kg` : "",
           biomass: Math.round(biomass_kg_ha),
           capacity: Math.round(a.area_hectares * 3.5), // Estimativa simples para o front
@@ -97,6 +109,22 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
         setSelected(prev => mapped.find(p => p.id === prev?.id) || mapped[0]);
       } else {
         setSelected(null);
+      }
+
+      // Build action summary from timeline
+      if (data.lot && data.lot.current_area_name && data.timeline) {
+        const occupiedArea = mapped.find(p => p.cattle > 0);
+        const nextEvent = data.timeline.length > 0 ? data.timeline[0] : null;
+        setActionSummary({
+          currentAreaName: data.lot.current_area_name || "Desconhecido",
+          biomassKgHa: occupiedArea ? occupiedArea.biomass : 0,
+          nextAction: nextEvent ? nextEvent.message : null,
+          nextActionDays: nextEvent ? nextEvent.day_offset : null,
+          nextAreaName: nextEvent ? nextEvent.to_area_name : null,
+          actionType: nextEvent ? nextEvent.action : null,
+        });
+      } else {
+        setActionSummary(null);
       }
     } catch (err) {
       console.error("Erro ao buscar dados do dashboard", err);
@@ -208,6 +236,11 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
   const cfg = statusConfig[selected.status];
   const StatusIcon = cfg.icon;
   const occupancyPct = selected.capacity > 0 ? Math.round((selected.cattle / selected.capacity) * 100) : 0;
+  const uaHa = selected.cattle > 0 && selected.area > 0
+    ? ((selected.cattle * selected.averageWeight / 450) / selected.area)
+    : 0;
+  const uaHaFormatted = uaHa.toFixed(1).replace('.', ',');
+  const uaHaStatus = uaHa === 0 ? "neutral" : uaHa <= 2.5 ? "good" : uaHa <= 4.0 ? "warning" : "critical";
 
   /* ── Map Panel (areas grid) ── */
   const mapPanel = (
@@ -303,6 +336,21 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
         </div>
         <div className="w-px bg-gray-200" />
         <div className="text-center">
+          {(() => {
+            const occupiedPiquete = piquetes.find(p => p.cattle > 0);
+            const globalUaHa = occupiedPiquete && occupiedPiquete.area > 0
+              ? ((occupiedPiquete.cattle * occupiedPiquete.averageWeight / 450) / occupiedPiquete.area).toFixed(1).replace('.', ',')
+              : "—";
+            return (
+              <>
+                <p className="text-lg text-blue-600">{globalUaHa}</p>
+                <p className="text-xs text-gray-500">UA/ha</p>
+              </>
+            );
+          })()}
+        </div>
+        <div className="w-px bg-gray-200" />
+        <div className="text-center">
           <p className="text-lg text-emerald-600">{piquetes.filter(p => p.status === "green").length}</p>
           <p className="text-xs text-gray-500">Saudáveis</p>
         </div>
@@ -324,6 +372,55 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
 
       {/* Header da área selecionada */}
       <div className="px-4 sm:px-6 py-4 sm:py-5 bg-white border-b border-gray-100">
+
+        {/* "O que fazer hoje" summary card */}
+        {actionSummary && (
+          <div className={`mb-4 rounded-xl p-3.5 border ${
+            actionSummary.actionType === "alerta"
+              ? "bg-red-50 border-red-200"
+              : actionSummary.nextActionDays !== null && actionSummary.nextActionDays <= 2
+              ? "bg-amber-50 border-amber-200"
+              : "bg-blue-50 border-blue-200"
+          }`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                actionSummary.actionType === "alerta"
+                  ? "bg-red-100"
+                  : actionSummary.nextActionDays !== null && actionSummary.nextActionDays <= 2
+                  ? "bg-amber-100"
+                  : "bg-blue-100"
+              }`}>
+                <Zap size={16} className={`${
+                  actionSummary.actionType === "alerta"
+                    ? "text-red-600"
+                    : actionSummary.nextActionDays !== null && actionSummary.nextActionDays <= 2
+                    ? "text-amber-600"
+                    : "text-blue-600"
+                }`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 mb-0.5">📌 O que fazer hoje</p>
+                <p className="text-sm text-gray-800 leading-snug">
+                  Seu lote está no <span className="font-medium">{actionSummary.currentAreaName}</span>.
+                  {" "}Biomassa atual: <span className="font-medium">{actionSummary.biomassKgHa.toLocaleString("pt-BR")} kg/ha</span>.
+                </p>
+                {actionSummary.nextAction && actionSummary.nextActionDays !== null && (
+                  <p className={`text-xs mt-1 ${
+                    actionSummary.nextActionDays <= 2 ? "text-amber-700 font-medium" : "text-gray-500"
+                  }`}>
+                    {actionSummary.nextActionDays === 0
+                      ? "⚡ Ação recomendada para HOJE: "
+                      : actionSummary.nextActionDays === 1
+                      ? "⏰ Próxima ação amanhã: "
+                      : `📅 Próxima ação em ${actionSummary.nextActionDays} dias: `
+                    }
+                    {actionSummary.nextAction}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -383,6 +480,29 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
                 />
               </div>
             </div>
+
+            {/* Taxa de Lotação (UA/ha) */}
+            {selected.cattle > 0 && (
+              <div className={`mt-3 pt-3 border-t border-gray-100 flex items-center justify-between`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Taxa de Lotação</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                    uaHaStatus === "good" ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                    : uaHaStatus === "warning" ? "bg-amber-50 text-amber-600 border-amber-200"
+                    : "bg-red-50 text-red-600 border-red-200"
+                  }`}>
+                    {uaHaStatus === "good" ? "Adequada" : uaHaStatus === "warning" ? "Elevada" : "Superlotação"}
+                  </span>
+                </div>
+                <p className={`text-sm font-medium ${
+                  uaHaStatus === "good" ? "text-emerald-600"
+                  : uaHaStatus === "warning" ? "text-amber-600"
+                  : "text-red-600"
+                }`}>
+                  {uaHaFormatted} UA/ha
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Status de Saúde */}
