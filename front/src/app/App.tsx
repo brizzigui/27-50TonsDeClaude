@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, CalendarRange, Leaf, Settings, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Leaf, Settings, LogOut } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
@@ -109,16 +109,6 @@ export default function App() {
 
         {/* Right actions */}
         <div className="flex items-center gap-1">
-          {screen === "dashboard" && (
-            <button
-              onClick={() => openSettings("areas")}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-green-50 transition-colors cursor-pointer"
-              title="Adicionar piquete"
-              aria-label="Adicionar piquete"
-            >
-              <Plus size={17} className="text-green-700" />
-            </button>
-          )}
           <button 
             onClick={() => openSettings("lote")}
             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import api from "../api";
 import {
   MapPin, Leaf, Clock, Users, Camera, Upload,
-  CheckCircle, AlertCircle, XCircle, RefreshCw, X, Ruler, ChevronDown
+  CheckCircle, AlertCircle, XCircle, RefreshCw, X, Ruler, ChevronDown, Plus
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
@@ -217,7 +217,19 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
           <MapPin size={16} className="text-green-700" />
           <span className="text-gray-500 text-sm">Propriedade: {farmName}</span>
         </div>
-        <h2 className="text-gray-800">Mapa de Pastagens</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-gray-800">Mapa de Pastagens</h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenSettings?.("areas")}
+            className="shrink-0 border-green-200 px-2.5 text-xs text-green-700 hover:bg-green-50 hover:text-green-800 sm:text-sm"
+          >
+            <Plus size={14} />
+            Adicionar Área
+          </Button>
+        </div>
       </div>
 
       {/* Legend */}
