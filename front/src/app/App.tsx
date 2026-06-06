@@ -23,7 +23,7 @@ export default function App() {
             <Leaf size={16} className="text-white" />
           </div>
           <div className="leading-tight">
-            <p className="text-gray-800 leading-none">PastoSmart</p>
+            <p className="text-gray-800 leading-none">PastoCerto</p>
             <p className="text-gray-400 text-xs leading-none mt-0.5">Gestão de Pastagens</p>
           </div>
         </div>
