@@ -12,13 +12,16 @@ from simulation import simular_rotacao
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app, origins='*')
+if os.getenv('PRODUCTION') == 'true':
+    CORS(app, origins=['https://api-pastocerto.brizzigui.com', 'https://pastocerto.brizzigui.com'])
+else:
+    CORS(app, origins='*')
 
 # Configurações do Banco de Dados e JWT
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-secret-key-change-this-in-production'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
@@ -379,16 +382,18 @@ def evaluation():
     timeline = []
     weight_projection = []
     summary = {}
+    area_biomass_history = {}
 
     if lot.current_area_id and areas:
-            timeline, weight_projection, summary = simular_rotacao(lot, areas)
+            timeline, weight_projection, summary, area_biomass_history = simular_rotacao(lot, areas)
         
     return jsonify({
         "lot": lot_data,
         "areas": areas_list,
         "timeline": timeline,
         "weight_projection": weight_projection,
-        "summary": summary
+        "summary": summary,
+        "area_biomass_history": area_biomass_history
     }), 200
 
 @app.route('/api/profile', methods=['GET'])
@@ -429,4 +434,8 @@ def update_profile():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('PORT', 5000))
+    if os.getenv('PRODUCTION') == 'true':
+        app.run(port=port)
+    else:
+        app.run(debug=True, port=port)
