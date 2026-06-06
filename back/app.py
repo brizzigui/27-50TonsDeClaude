@@ -391,37 +391,55 @@ def evaluation():
             
             score = current_area.last_quality_score
             
-            if score is not None and score < 40:
-                # Equivalente a 'vermelho'
-                # Procurar próxima área 'verde' (>= 60) pela rotation_order
-                next_area = PastureArea.query.filter(
-                    PastureArea.user_id == current_user_id,
-                    PastureArea.rotation_order > current_area.rotation_order
-                ).order_by(PastureArea.rotation_order.asc()).first()
+            if score is not None:
+                # O score agora representa a Biomassa (Matéria Seca) total em kg.
+                # Consumo diário do lote estimado em 2.5% do peso vivo.
+                total_live_weight_kg = lot.head_count * lot.average_weight_kg
+                daily_intake = total_live_weight_kg * 0.025
                 
-                if not next_area:
-                    next_area = PastureArea.query.filter(
-                        PastureArea.user_id == current_user_id
-                    ).order_by(PastureArea.rotation_order.asc()).first()
-
-                if next_area and next_area.last_quality_score is not None and next_area.last_quality_score >= 60:
-                    action = 'mover'
-                    message = f'Mover o lote do {current_area.name} para o {next_area.name}.'
-                else:
-                    action = 'medir'
-                    message = 'Nenhuma área com qualidade adequada disponível na rotação. Medir novamente em breve ou providenciar suplementação.'
+                # Assumimos uma eficiência de pastejo de 50% (metade fica de resíduo para a planta rebrotar)
+                available_intake = score * 0.5
+                
+                days_remaining = available_intake / daily_intake if daily_intake > 0 else 999
+                
+                if days_remaining < 3:
+                    # Crítico: Menos de 3 dias de pasto, precisa mover!
+                    next_area = None
+                    candidate_areas = PastureArea.query.filter(
+                        PastureArea.user_id == current_user_id,
+                        PastureArea.id != current_area.id
+                    ).order_by(PastureArea.rotation_order.asc()).all()
                     
-            elif score is not None and score < 60:
-                # Equivalente a 'amarelo'
-                action = 'medir'
-                message = 'Área em alerta. Medir novamente em poucos dias.'
-            elif score is not None and score >= 60:
-                # Equivalente a 'verde'
-                action = 'manter'
-                message = 'Manter na área atual.'
+                    # Reordena para começar logo após o piquete atual
+                    sorted_candidates = [a for a in candidate_areas if a.rotation_order > current_area.rotation_order] + \
+                                        [a for a in candidate_areas if a.rotation_order <= current_area.rotation_order]
+                    
+                    best_target = None
+                    for area in sorted_candidates:
+                        if area.last_quality_score is not None:
+                            area_days = (area.last_quality_score * 0.5) / daily_intake if daily_intake > 0 else 999
+                            if area_days >= 7:  # A próxima área precisa ter pelo menos 7 dias de comida
+                                best_target = area
+                                break
+                    
+                    if best_target:
+                        action = 'mover'
+                        message = f'Mover do {current_area.name} para o {best_target.name}. Pasto atual suporta apenas ~{int(days_remaining)} dias.'
+                    else:
+                        action = 'medir'
+                        message = f'Pasto crítico (~{int(days_remaining)} dias), mas nenhum piquete na rotação tem massa suficiente. Avalie suplementar!'
+                        
+                elif days_remaining < 7:
+                    # Atenção: Pasto acabando na próxima semana
+                    action = 'medir'
+                    message = f'Atenção: restam aprox. {int(days_remaining)} dias de pasto útil. Planeje a rotação e meça os próximos piquetes.'
+                else:
+                    # Excelente: Pasto farto
+                    action = 'manter'
+                    message = f'Manter na área. Pasto estimado para mais {int(days_remaining)} dias com o lote atual.'
             else:
                 action = 'medir'
-                message = 'Sem dados recentes. Atualize a leitura da área.'
+                message = 'Sem dados recentes da área atual. Atualize a leitura com uma foto.'
 
             recommendations.append({
                 "date": datetime.utcnow().isoformat(),
