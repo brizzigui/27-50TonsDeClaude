@@ -12,13 +12,16 @@ from simulation import simular_rotacao
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app, origins='*')
+if os.getenv('PRODUCTION') == 'true':
+    CORS(app, origins=['https://api-pastocerto.brizzigui.com', 'https://pastocerto.brizzigui.com'])
+else:
+    CORS(app, origins='*')
 
 # Configurações do Banco de Dados e JWT
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-secret-key-change-this-in-production'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
@@ -431,4 +434,7 @@ def update_profile():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    if os.getenv('PRODUCTION') == 'true':
+        app.run(port=5000)
+    else:
+        app.run(debug=True, port=5000)
