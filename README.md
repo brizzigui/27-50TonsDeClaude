@@ -154,7 +154,7 @@ Uma chave de API da OpenAI é **necessária** para a funcionalidade de análise 
 ### 1. Clonar o repositório
 
 ```bash
-git clone https://github.com/[TODO: preencher]/27-50TonsDeClaude.git
+git clone https://github.com/brizzigui/27-50TonsDeClaude.git
 cd 27-50TonsDeClaude
 ```
 
@@ -170,7 +170,7 @@ python -m venv venv
 venv\Scripts\activate
 
 # Ativar (Linux/Mac)
-# source venv/bin/activate
+source venv/bin/activate
 
 # Instalar dependências
 pip install -r requirements.txt
@@ -183,7 +183,7 @@ cp .env.example .env
 python app.py
 ```
 
-O backend estará disponível em `http://localhost:5000`.
+O backend estará disponível em `http://localhost:5000`, ao não ser que editado.
 
 > O banco `database.db` é criado automaticamente na primeira execução.
 
@@ -195,6 +195,10 @@ cd front
 # Instalar dependências
 npm install
 
+# Configurar variáveis de ambiente
+cp .env.example .env
+# Editar .env e preencher OPENAI_API_KEY
+
 # Rodar o servidor de desenvolvimento
 npm run dev
 ```
@@ -203,9 +207,4 @@ O frontend estará disponível em `http://localhost:5173` (porta padrão do Vite
 
 ### Variáveis de Ambiente
 
-Crie um arquivo `.env` dentro da pasta `back/`:
-
-```env
-# back/.env
-OPENAI_API_KEY=sk-sua-chave-aqui
-```
+Crie arquivos `.env` dentro da pasta `back/` e `front/`, conforme os exemplos:
