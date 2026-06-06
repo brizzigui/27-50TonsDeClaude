@@ -72,8 +72,6 @@ CREATE TABLE pasture_readings (
     biomass_percent REAL,
     recent_weather_condition TEXT,
     health_status TEXT NOT NULL,
-    recommendation_action TEXT,
-    recommendation_message TEXT,
     measured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (pasture_area_id) REFERENCES pasture_areas(id) ON DELETE CASCADE
 );
@@ -159,21 +157,7 @@ Saída:
 
 ## `GET /api/evaluation`
 
-Retorna tudo que a tela precisa:
-
-```json
-{
-  "lot": {
-    "animal_category": "Garrotes",
-    "head_count": 35,
-    "average_weight_kg": 320,
-    "total_live_weight_kg": 11200,
-    "current_area_id": 1
-  },
-  "areas": [],
-  "last_recommendations": []
-}
-```
+Retorna tudo que a tela precisa, ainda a ser definido. TBD.
 
 ## Quando complicar depois
 
