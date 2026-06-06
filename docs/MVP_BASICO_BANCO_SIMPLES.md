@@ -13,16 +13,17 @@ O sistema só precisa saber:
 - qual é o lote único;
 - onde o lote está agora;
 - qual foi a última leitura das áreas;
-- qual recomendação mostrar.
+- qual recomendação geral mostrar.
 
 ## Banco mínimo
 
-São 4 tabelas:
+São 5 tabelas:
 
 - `users`: login.
 - `pasture_areas`: áreas/piquetes.
 - `cattle_lot`: lote único do usuário.
-- `pasture_readings`: leituras, fotos e recomendação gerada.
+- `pasture_readings`: leituras e fotos de uma área específica.
+- `movement_recommendations`: decisão geral sobre o lote.
 
 `cattle_lot.user_id` usa `UNIQUE` para garantir que cada usuário tenha só um lote.
 
@@ -41,7 +42,6 @@ CREATE TABLE pasture_areas (
     name TEXT NOT NULL,
     area_hectares REAL NOT NULL,
     grass_type TEXT,
-    rotation_order INTEGER,
     status TEXT NOT NULL DEFAULT 'descanso',
     last_health_status TEXT NOT NULL DEFAULT 'sem_dados',
     last_biomass_percent REAL,
@@ -72,10 +72,24 @@ CREATE TABLE pasture_readings (
     biomass_percent REAL,
     recent_weather_condition TEXT,
     health_status TEXT NOT NULL,
-    recommendation_action TEXT,
-    recommendation_message TEXT,
     measured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (pasture_area_id) REFERENCES pasture_areas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE movement_recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    cattle_lot_id INTEGER NOT NULL,
+    from_area_id INTEGER,
+    to_area_id INTEGER,
+    action_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (cattle_lot_id) REFERENCES cattle_lot(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_area_id) REFERENCES pasture_areas(id),
+    FOREIGN KEY (to_area_id) REFERENCES pasture_areas(id)
 );
 ```
 
@@ -84,9 +98,9 @@ CREATE TABLE pasture_readings (
 Usuário cadastra:
 
 ```text
-Piquete 01 - 12 ha - ordem 1
-Piquete 02 - 10 ha - ordem 2
-Piquete 03 - 8 ha - ordem 3
+Piquete 01 - 12 ha
+Piquete 02 - 10 ha
+Piquete 03 - 8 ha
 
 Lote único:
 35 garrotes
@@ -104,9 +118,21 @@ O backend calcula quando precisar.
 
 ## Regra simples
 
+Ao receber uma nova leitura, o backend deve:
+
+```text
+1. Salvar a leitura daquela área em pasture_readings.
+2. Atualizar o resumo da área em pasture_areas.
+3. Buscar o lote único do usuário em cattle_lot.
+4. Buscar a área atual do lote.
+5. Buscar a última leitura de cada área.
+6. Decidir se o lote deve ficar, mover ou aguardar nova medição.
+7. Salvar a decisão em movement_recommendations.
+```
+
 ```text
 Se área atual está vermelha:
-    procurar próxima área verde pela rotation_order
+    procurar a melhor área disponível para receber o lote
     se encontrou, recomendar mover
     se não encontrou, recomendar medir novamente
 
@@ -116,6 +142,162 @@ Se área atual está amarela:
 Se área atual está verde:
     recomendar manter
 ```
+
+A leitura (`pasture_readings`) classifica uma área. A recomendação (`movement_recommendations`) olha o conjunto: área atual, próximas áreas e lote de gado.
+
+## Sugestão de cálculo para o MVP
+
+### Campo de biomassa
+
+No MVP, use apenas:
+
+```text
+biomass_percent
+```
+
+```text
+biomass_percent = biomassa estimada na amostra da foto/leitura
+```
+
+### Dados usados
+
+Para decidir o movimento, o backend usa:
+
+```text
+Lote:
+- head_count
+- average_weight_kg
+- current_area_id
+
+Área:
+- area_hectares
+- status
+
+Última leitura de cada área:
+- height_cm
+- biomass_percent
+- green_percent
+- health_status
+```
+
+### Peso vivo total
+
+```text
+total_live_weight_kg = head_count * average_weight_kg
+```
+
+Exemplo:
+
+```text
+35 cabeças * 320 kg = 11.200 kg de peso vivo
+```
+
+### A área atual ainda aguenta?
+
+Regra inicial:
+
+```text
+Se height_cm < 20:
+    precisa sair
+
+Se biomass_percent < 40:
+    precisa sair
+
+Se health_status = vermelho:
+    precisa sair
+
+Caso contrário:
+    pode permanecer
+```
+
+### Para onde mover?
+
+O usuário não precisa cadastrar ordem de rotação.
+
+O sistema escolhe a melhor área disponível com base nas últimas leituras.
+
+Uma área pode receber o lote se:
+
+```text
+height_cm >= 30
+biomass_percent >= 60
+health_status = verde
+status = descanso
+```
+
+Se houver mais de uma área pronta, o sistema pode calcular uma pontuação simples:
+
+```text
+area_score = biomass_percent + height_cm
+```
+
+Exemplo:
+
+```text
+Piquete 02:
+Biomassa: 72%
+Altura: 33 cm
+Score: 105
+
+Piquete 03:
+Biomassa: 65%
+Altura: 31 cm
+Score: 96
+
+Melhor área: Piquete 02
+```
+
+Se encontrar uma área pronta:
+
+```text
+Recomendar mover o lote inteiro para essa área.
+```
+
+Se não encontrar:
+
+```text
+Recomendar manter em atenção ou fazer nova leitura.
+```
+
+### Exemplo de decisão
+
+```text
+Lote:
+35 cabeças x 320 kg = 11.200 kg
+
+Área atual: Piquete 01
+Altura: 18 cm
+Biomassa: 35%
+Status: vermelho
+
+Próxima área: Piquete 02
+Altura: 33 cm
+Biomassa: 72%
+Status: verde
+
+Decisão:
+Mover lote inteiro do Piquete 01 para o Piquete 02.
+```
+
+### Versão futura com biomassa em kg
+
+Se depois o sistema estimar biomassa em `kg/ha`, a decisão pode ficar melhor:
+
+```text
+forragem_total_kg = biomass_kg_per_ha * area_hectares
+forragem_utilizavel_kg = forragem_total_kg * 0.45
+consumo_diario_kg = total_live_weight_kg * 0.025
+dias_suportados = forragem_utilizavel_kg / consumo_diario_kg
+```
+
+Nesse caso, uma área estaria pronta se:
+
+```text
+dias_suportados >= 2 ou 3 dias
+height_cm >= altura mínima de entrada
+```
+
+Para o hackathon, a regra com `height_cm`, `biomass_percent` e `health_status` já é suficiente.
 
 ## Endpoints mínimos
 
@@ -152,8 +334,13 @@ Saída:
 ```json
 {
   "health_status": "vermelho",
-  "recommendation_action": "mover",
-  "recommendation_message": "Mover o lote do Piquete 01 para o Piquete 02."
+  "saved_reading_id": 12,
+  "generated_recommendation": {
+    "action_type": "mover",
+    "from_area_id": 1,
+    "to_area_id": 2,
+    "message": "Mover o lote do Piquete 01 para o Piquete 02."
+  }
 }
 ```
 
@@ -171,7 +358,12 @@ Retorna tudo que a tela precisa:
     "current_area_id": 1
   },
   "areas": [],
-  "last_recommendations": []
+  "latest_recommendation": {
+    "action_type": "mover",
+    "from_area_id": 1,
+    "to_area_id": 2,
+    "message": "Mover o lote do Piquete 01 para o Piquete 02."
+  }
 }
 ```
 
@@ -205,7 +397,6 @@ Exemplo:
 Piquete 01 - Baixada
 12 hectares
 Azevém
-Ordem na rotação: 1
 ```
 
 Cada área pode estar em descanso, ocupada ou sem dados suficientes.
@@ -236,8 +427,7 @@ Ela guarda:
 - foto enviada;
 - percentual de verde/biomassa estimado;
 - condição climática recente;
-- status da área;
-- recomendação gerada naquele momento.
+- status da área.
 
 Exemplo:
 
@@ -247,7 +437,29 @@ Altura: 19 cm
 Verde estimado: 52%
 Clima: chuva leve
 Status: vermelho
-Recomendação: mover lote para o Piquete 02
 ```
 
-Em termos simples: `pasture_readings` é o histórico de medições e decisões do sistema.
+Em termos simples: `pasture_readings` é o histórico de medições das áreas.
+
+### `movement_recommendations`
+
+É a recomendação geral do sistema sobre o lote.
+
+Ela não pertence a uma única leitura, porque a decisão de mover depende de várias coisas ao mesmo tempo:
+
+- área onde o lote está;
+- últimas leituras de todas as áreas;
+- quantidade de cabeças;
+- peso médio do lote;
+- biomassa/altura disponível nas áreas.
+
+Exemplo:
+
+```text
+Ação: mover
+De: Piquete 01
+Para: Piquete 02
+Motivo: Piquete 01 está vermelho e Piquete 02 está verde.
+```
+
+Em termos simples: `movement_recommendations` é o histórico das decisões do sistema.
