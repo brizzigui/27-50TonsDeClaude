@@ -73,7 +73,7 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
         let lastEval = "Sem dados";
         if (a.last_measured_at) {
           const diffDays = Math.floor((new Date().getTime() - new Date(a.last_measured_at).getTime()) / (1000 * 3600 * 24));
-          lastEval = diffDays === 0 ? "hoje" : `há ${diffDays} dias`;
+          lastEval = diffDays <= 0 ? "hoje" : `há ${diffDays} dias`;
         }
 
         const hasLot = data.lot && data.lot.current_area_id === a.id;

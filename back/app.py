@@ -185,7 +185,7 @@ def get_areas():
         "grass_type": a.grass_type,
         "status": a.status,
         "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
-        "last_measured_at": a.last_measured_at.isoformat() if a.last_measured_at else None
+        "last_measured_at": a.last_measured_at.isoformat() + "Z" if a.last_measured_at else None
     } for a in areas]
 
     return jsonify(areas_list), 200
@@ -360,7 +360,7 @@ def evaluation():
         "grass_type": a.grass_type,
         "status": a.status,
         "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
-        "last_measured_at": a.last_measured_at.isoformat() if a.last_measured_at else None
+        "last_measured_at": a.last_measured_at.isoformat() + "Z" if a.last_measured_at else None
     } for a in areas]
 
     # Lot data for response
