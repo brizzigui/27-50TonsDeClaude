@@ -25,7 +25,7 @@ export function Login({ onLogin }: LoginProps) {
       {/* Dark gradient overlay for readability */}
       <div className="absolute inset-0 bg-gradient-to-br from-green-900/80 to-slate-900/90 backdrop-blur-[2px]"></div>
 
-      <div className="relative z-10 w-full max-w-md p-8 md:p-10 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]">
+      <div className="relative z-10 w-full max-w-md mx-4 sm:mx-auto p-6 sm:p-8 md:p-10 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl sm:rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]">
         
         {/* Logo Header */}
         <div className="flex flex-col items-center mb-10">
