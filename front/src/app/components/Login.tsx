@@ -32,7 +32,7 @@ export function Login({ onLogin }: LoginProps) {
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-green-600 to-green-400 flex items-center justify-center shadow-lg shadow-green-900/50 mb-4 transform hover:scale-105 transition-transform duration-300">
             <Leaf size={32} className="text-white drop-shadow-md" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">PastoSmart</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">PastoCerto</h1>
           <p className="text-green-100/70 text-sm font-medium tracking-wide">Gestão Inteligente de Pastagens</p>
         </div>
 

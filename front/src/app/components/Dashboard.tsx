@@ -23,15 +23,15 @@ interface Piquete {
 }
 
 const PIQUETES: Piquete[] = [
-  { id: 1, name: "Piquete 01", subtitle: "Baixada", area: 12, status: "green", lastEval: "há 3 dias", cattle: 35, category: "Garrotes 300kg", biomass: 78, capacity: 45 },
-  { id: 2, name: "Piquete 02", subtitle: "Cerrado", area: 8, status: "yellow", lastEval: "há 1 dia", cattle: 28, category: "Vacas 450kg", biomass: 45, capacity: 30 },
-  { id: 3, name: "Piquete 03", subtitle: "Alto", area: 15, status: "green", lastEval: "há 5 dias", cattle: 42, category: "Novilhos 350kg", biomass: 92, capacity: 55 },
-  { id: 4, name: "Piquete 04", subtitle: "Várzea", area: 10, status: "red", lastEval: "há 7 dias", cattle: 18, category: "Garrotes 280kg", biomass: 22, capacity: 38 },
-  { id: 5, name: "Piquete 05", subtitle: "Serra", area: 20, status: "green", lastEval: "há 2 dias", cattle: 55, category: "Touros 600kg", biomass: 65, capacity: 70 },
-  { id: 6, name: "Piquete 06", subtitle: "Brejo", area: 6, status: "yellow", lastEval: "há 4 dias", cattle: 15, category: "Bezerros 150kg", biomass: 38, capacity: 22 },
-  { id: 7, name: "Piquete 07", subtitle: "Manga", area: 18, status: "green", lastEval: "há 1 dia", cattle: 48, category: "Novilhas 320kg", biomass: 85, capacity: 60 },
-  { id: 8, name: "Piquete 08", subtitle: "Fundo", area: 11, status: "red", lastEval: "há 10 dias", cattle: 22, category: "Garrotes 290kg", biomass: 15, capacity: 40 },
-  { id: 9, name: "Piquete 09", subtitle: "Norte", area: 14, status: "green", lastEval: "há 2 dias", cattle: 38, category: "Vacas 400kg", biomass: 72, capacity: 50 },
+  { id: 1, name: "Área 01", subtitle: "Baixada", area: 12, status: "green", lastEval: "há 3 dias", cattle: 35, category: "Garrotes 300kg", biomass: 78, capacity: 45 },
+  { id: 2, name: "Área 02", subtitle: "Cerrado", area: 8, status: "yellow", lastEval: "há 1 dia", cattle: 28, category: "Vacas 450kg", biomass: 45, capacity: 30 },
+  { id: 3, name: "Área 03", subtitle: "Alto", area: 15, status: "green", lastEval: "há 5 dias", cattle: 42, category: "Novilhos 350kg", biomass: 92, capacity: 55 },
+  { id: 4, name: "Área 04", subtitle: "Várzea", area: 10, status: "red", lastEval: "há 7 dias", cattle: 18, category: "Garrotes 280kg", biomass: 22, capacity: 38 },
+  { id: 5, name: "Área 05", subtitle: "Serra", area: 20, status: "green", lastEval: "há 2 dias", cattle: 55, category: "Touros 600kg", biomass: 65, capacity: 70 },
+  { id: 6, name: "Área 06", subtitle: "Brejo", area: 6, status: "yellow", lastEval: "há 4 dias", cattle: 15, category: "Bezerros 150kg", biomass: 38, capacity: 22 },
+  { id: 7, name: "Área 07", subtitle: "Manga", area: 18, status: "green", lastEval: "há 1 dia", cattle: 48, category: "Novilhas 320kg", biomass: 85, capacity: 60 },
+  { id: 8, name: "Área 08", subtitle: "Fundo", area: 11, status: "red", lastEval: "há 10 dias", cattle: 22, category: "Garrotes 290kg", biomass: 15, capacity: 40 },
+  { id: 9, name: "Área 09", subtitle: "Norte", area: 14, status: "green", lastEval: "há 2 dias", cattle: 38, category: "Vacas 400kg", biomass: 72, capacity: 50 },
 ];
 
 const statusConfig = {
@@ -118,7 +118,7 @@ export function Dashboard() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* LEFT: Mapa de piquetes */}
+      {/* LEFT: Mapa de áreas */}
       <div className="w-[42%] min-w-[320px] flex flex-col border-r border-gray-200 bg-white">
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2 mb-0.5">
@@ -198,7 +198,7 @@ export function Dashboard() {
 
       {/* RIGHT: Detalhes */}
       <div className="flex-1 flex flex-col bg-[#f7f9f4] overflow-y-auto">
-        {/* Header do piquete selecionado */}
+        {/* Header da área selecionada */}
         <div className="px-6 py-5 bg-white border-b border-gray-100">
           <div className="flex items-start justify-between">
             <div>
@@ -383,7 +383,7 @@ export function Dashboard() {
               <div className="space-y-2">
                 <label className="text-sm text-gray-700 flex items-center gap-1.5">
                   <Camera size={15} className="text-gray-400" />
-                  Foto do piquete
+                  Foto da área
                 </label>
                 <input
                   ref={fileInputRef}
