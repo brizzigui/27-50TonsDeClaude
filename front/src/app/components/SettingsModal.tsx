@@ -7,8 +7,11 @@ import { CheckCircle, Save, MapPin, Grid, Plus, Trash2, Beef, RefreshCw } from "
 interface SettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTab?: SettingsTab;
   onUpdate: () => void; // call to refresh parent components
 }
+
+type SettingsTab = "lote" | "areas";
 
 interface Area {
   id: number;
@@ -26,8 +29,8 @@ interface Lote {
   target_weight_kg: number | null;
 }
 
-export function SettingsModal({ open, onOpenChange, onUpdate }: SettingsModalProps) {
-  const [tab, setTab] = useState<"lote" | "areas">("lote");
+export function SettingsModal({ open, onOpenChange, initialTab = "lote", onUpdate }: SettingsModalProps) {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -47,9 +50,10 @@ export function SettingsModal({ open, onOpenChange, onUpdate }: SettingsModalPro
 
   useEffect(() => {
     if (open) {
+      setTab(initialTab);
       loadData();
     }
-  }, [open]);
+  }, [open, initialTab]);
 
   const loadData = async () => {
     try {

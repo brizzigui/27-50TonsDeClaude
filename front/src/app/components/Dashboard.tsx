@@ -37,7 +37,7 @@ function biomassColor(v: number) {
 interface DashboardProps {
   farmName?: string;
   updateTrigger?: number;
-  onOpenSettings?: () => void;
+  onOpenSettings?: (tab?: "lote" | "areas") => void;
 }
 
 export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, onOpenSettings }: DashboardProps) {
@@ -195,7 +195,7 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, 
           Parece que você ainda não tem áreas (piquetes) cadastradas. Para começar a gerenciar seu rebanho e planejar suas pastagens, configure sua propriedade agora mesmo.
         </p>
         <Button 
-          onClick={onOpenSettings}
+          onClick={() => onOpenSettings?.("areas")}
           className="bg-green-700 hover:bg-green-800 text-white gap-2 px-6 py-5 rounded-xl text-base shadow-sm hover:shadow-md transition-all"
         >
           <MapPin size={18} />

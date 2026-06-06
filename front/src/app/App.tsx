@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, CalendarRange, Leaf, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Leaf, Settings, LogOut, Plus } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import api from "./api";
 
 type Screen = "login" | "dashboard" | "planning";
+type SettingsTab = "lote" | "areas";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() => {
@@ -16,9 +17,15 @@ export default function App() {
   });
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("lote");
   const [avatarInitials, setAvatarInitials] = useState("US");
   const [farmName, setFarmName] = useState("Minha Fazenda");
   const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  const openSettings = useCallback((initialTab: SettingsTab = "lote") => {
+    setSettingsInitialTab(initialTab);
+    setSettingsOpen(true);
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -102,8 +109,18 @@ export default function App() {
 
         {/* Right actions */}
         <div className="flex items-center gap-1">
+          {screen === "dashboard" && (
+            <button
+              onClick={() => openSettings("areas")}
+              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-green-50 transition-colors cursor-pointer"
+              title="Adicionar piquete"
+              aria-label="Adicionar piquete"
+            >
+              <Plus size={17} className="text-green-700" />
+            </button>
+          )}
           <button 
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => openSettings("lote")}
             className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
             title="Configurações"
           >
@@ -128,7 +145,7 @@ export default function App() {
 
       {/* Screen content */}
       <main className="flex-1 overflow-hidden">
-        {screen === "dashboard" ? <Dashboard farmName={farmName} updateTrigger={updateTrigger} onOpenSettings={() => setSettingsOpen(true)} /> : <Planning updateTrigger={updateTrigger} />}
+        {screen === "dashboard" ? <Dashboard farmName={farmName} updateTrigger={updateTrigger} onOpenSettings={openSettings} /> : <Planning updateTrigger={updateTrigger} />}
       </main>
 
       {/* User Profile Modal */}
@@ -138,6 +155,7 @@ export default function App() {
       <SettingsModal 
         open={settingsOpen} 
         onOpenChange={setSettingsOpen} 
+        initialTab={settingsInitialTab}
         onUpdate={() => setUpdateTrigger(prev => prev + 1)}
       />
     </div>
