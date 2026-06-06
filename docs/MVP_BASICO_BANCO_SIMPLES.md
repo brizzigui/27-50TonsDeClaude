@@ -186,3 +186,68 @@ Só adicionar mais tabelas se o MVP precisar de:
 - agenda futura de rotação.
 
 Até lá, esse banco é suficiente.
+
+## Glossário das tabelas
+
+### `users`
+
+É a conta do produtor no sistema.
+
+Guarda dados de login, como nome, email e senha criptografada.
+
+### `pasture_areas`
+
+São as áreas de pastagem ou piquetes cadastrados pelo produtor.
+
+Exemplo:
+
+```text
+Piquete 01 - Baixada
+12 hectares
+Azevém
+Ordem na rotação: 1
+```
+
+Cada área pode estar em descanso, ocupada ou sem dados suficientes.
+
+### `cattle_lot`
+
+É o lote único de gado do usuário.
+
+No MVP, todas as cabeças andam juntas. Por isso, cada usuário tem só um `cattle_lot`.
+
+Exemplo:
+
+```text
+35 garrotes
+320 kg de peso médio
+Área atual: Piquete 01
+```
+
+### `pasture_readings`
+
+É uma leitura/avaliação feita em uma área de pastagem.
+
+Sempre que o produtor clica em "Atualizar Leitura", o sistema cria uma nova `pasture_reading`.
+
+Ela guarda:
+
+- altura do pasto;
+- foto enviada;
+- percentual de verde/biomassa estimado;
+- condição climática recente;
+- status da área;
+- recomendação gerada naquele momento.
+
+Exemplo:
+
+```text
+Piquete 01
+Altura: 19 cm
+Verde estimado: 52%
+Clima: chuva leve
+Status: vermelho
+Recomendação: mover lote para o Piquete 02
+```
+
+Em termos simples: `pasture_readings` é o histórico de medições e decisões do sistema.
