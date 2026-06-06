@@ -4,6 +4,8 @@ import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
 import { UserProfile } from "./components/UserProfile";
+import { SettingsModal } from "./components/SettingsModal";
+import api from "./api";
 
 type Screen = "login" | "dashboard" | "planning";
 
@@ -13,6 +15,29 @@ export default function App() {
     return localStorage.getItem("access_token") ? "dashboard" : "login";
   });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [avatarInitials, setAvatarInitials] = useState("US");
+  const [farmName, setFarmName] = useState("Minha Fazenda");
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await api.get("/api/profile");
+      if (res.data) {
+        const name = res.data.name || "Usuário";
+        setAvatarInitials(name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase());
+        setFarmName(res.data.farm_name || "Fazenda Não Configurada");
+      }
+    } catch (err) {
+      console.error("Erro ao buscar perfil no App", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (screen !== "login") {
+      fetchProfile();
+    }
+  }, [screen, fetchProfile, updateTrigger]);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem("access_token");
@@ -81,25 +106,35 @@ export default function App() {
             <Bell size={16} className="text-gray-500" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
           </button>
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors hidden sm:flex">
+          <button 
+            onClick={() => setSettingsOpen(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors hidden sm:flex cursor-pointer"
+          >
             <Settings size={16} className="text-gray-500" />
           </button>
           <button 
             onClick={() => setProfileOpen(true)}
             className="ml-1 sm:ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
           >
-            <span className="text-white text-xs">JV</span>
+            <span className="text-white text-xs">{avatarInitials}</span>
           </button>
         </div>
       </header>
 
       {/* Screen content */}
       <main className="flex-1 overflow-hidden">
-        {screen === "dashboard" ? <Dashboard /> : <Planning />}
+        {screen === "dashboard" ? <Dashboard farmName={farmName} updateTrigger={updateTrigger} /> : <Planning updateTrigger={updateTrigger} />}
       </main>
 
       {/* User Profile Modal */}
       <UserProfile open={profileOpen} onOpenChange={setProfileOpen} />
+
+      {/* Settings Modal (Lote and Areas) */}
+      <SettingsModal 
+        open={settingsOpen} 
+        onOpenChange={setSettingsOpen} 
+        onUpdate={() => setUpdateTrigger(prev => prev + 1)}
+      />
     </div>
   );
 }

@@ -103,33 +103,6 @@ class MovementRecommendation(db.Model):
 def create_db():
     with app.app_context():
         db.create_all()
-        
-        # Initialize with a sample account if the database is empty
-        if not User.query.first():
-            print("Creating sample account and initial data...")
-            sample_user = User(name='Produtor Exemplo', email='produtor@exemplo.com')
-            sample_user.set_password('senha123')
-            db.session.add(sample_user)
-            db.session.commit()
-            
-            # Sample Pasture Areas
-            p1 = PastureArea(user_id=sample_user.id, name='Piquete 01 - Baixada', area_hectares=12.0, grass_type='Azevém', last_estimated_biomass_kg=8500.0)
-            p2 = PastureArea(user_id=sample_user.id, name='Piquete 02 - Morro', area_hectares=10.0, grass_type='Braquiária', last_estimated_biomass_kg=5000.0)
-            p3 = PastureArea(user_id=sample_user.id, name='Piquete 03 - Sede', area_hectares=8.0, grass_type='Pânico', last_estimated_biomass_kg=2000.0)
-            db.session.add_all([p1, p2, p3])
-            db.session.commit()
-
-            # Sample Cattle Lot
-            lot = CattleLot(
-                user_id=sample_user.id,
-                current_area_id=p1.id,
-                animal_category='Garrotes',
-                head_count=35,
-                average_weight_kg=320.0
-            )
-            db.session.add(lot)
-            db.session.commit()
-            print("Sample database initialized successfully!")
 
 create_db()
 
@@ -603,6 +576,7 @@ def evaluation():
         "id": a.id,
         "name": a.name,
         "area_hectares": a.area_hectares,
+        "grass_type": a.grass_type,
         "status": a.status,
         "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
         "last_biomass_percent": a.last_biomass_percent,

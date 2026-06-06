@@ -34,7 +34,12 @@ function biomassColor(v: number) {
   return "bg-red-500";
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  farmName?: string;
+  updateTrigger?: number;
+}
+
+export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }: DashboardProps) {
   const [piquetes, setPiquetes] = useState<Piquete[]>([]);
   const [selected, setSelected] = useState<Piquete | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -94,7 +99,7 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [updateTrigger]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -173,7 +178,7 @@ export function Dashboard() {
       <div className="px-4 sm:px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-0.5">
           <MapPin size={16} className="text-green-700" />
-          <span className="text-gray-500 text-sm">Propriedade: Fazenda Santa Cruz</span>
+          <span className="text-gray-500 text-sm">Propriedade: {farmName}</span>
         </div>
         <h2 className="text-gray-800">Mapa de Pastagens</h2>
       </div>

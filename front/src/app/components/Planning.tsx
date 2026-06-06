@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import api from "../api";
 import {
-  ArrowLeftRight, Pause, ShoppingCart, TrendingUp,
+  ArrowLeftRight, ShoppingCart, TrendingUp,
   Calendar, AlertCircle, CheckCircle, ChevronRight, ChevronDown
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart, Legend
+  Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
 import { Badge } from "./ui/badge";
 
-type ActionType = "mover" | "descansar" | "venda" | "alerta";
+type ActionType = "mover" | "venda" | "alerta";
 
 interface TimelineEvent {
   id: number;
@@ -33,13 +33,7 @@ const actionConfig: Record<ActionType, { Icon: React.ElementType; color: string;
     border: "border-blue-200",
     label: "Movimentação",
   },
-  descansar: {
-    Icon: Pause,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    border: "border-violet-200",
-    label: "Descanso",
-  },
+
   venda: {
     Icon: ShoppingCart,
     color: "text-emerald-600",
@@ -64,7 +58,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-          <span className="text-gray-500">{p.name === "projetado" ? "Projetado" : "Realizado"}:</span>
+          <span className="text-gray-500">Peso projetado:</span>
           <span className="text-gray-800">{p.value.toLocaleString("pt-BR")} kg</span>
         </div>
       ))}
@@ -72,7 +66,11 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export function Planning() {
+interface PlanningProps {
+  updateTrigger?: number;
+}
+
+export function Planning({ updateTrigger = 0 }: PlanningProps) {
   const [mobileTab, setMobileTab] = useState<"timeline" | "analytics">("timeline");
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [weightData, setWeightData] = useState<any[]>([]);
@@ -117,7 +115,6 @@ export function Planning() {
             return {
               semana: w.week === 0 ? "Hoje" : `Sem ${w.week}`,
               projetado: totalKg,
-              realizado: w.week === 0 ? totalKg : null, // Hoje é o único dado "realizado"
             };
           });
           setWeightData(mappedWeights);
@@ -127,6 +124,10 @@ export function Planning() {
           setEconomics({
             ...data.summary.economics,
             simulationDays: data.summary.simulation_days,
+            totalMoves: data.summary.total_moves,
+            estimatedFinalWeightKg: data.summary.estimated_final_weight_kg,
+            daysToSale: data.summary.days_to_sale,
+            saleReached: data.summary.sale_reached,
           });
         }
       } catch (err) {
@@ -134,16 +135,10 @@ export function Planning() {
       }
     }
     fetchData();
-  }, []);
-
-  const [weightData, setWeightData] = useState<any[]>([]);
+  }, [updateTrigger]);
 
   const totalProjetado = weightData.length > 0 ? weightData[weightData.length - 1].projetado : 0;
-  
-  // O realizado real no MVP é apenas o peso de hoje
-  const realizedPoints = weightData.filter(d => d.realizado !== null);
-  const totalRealizado = realizedPoints.length > 0 ? realizedPoints[realizedPoints.length - 1].realizado : 0;
-  const semanaAtual = realizedPoints.length;
+  const nextWeekGain = weightData.length > 1 ? weightData[1].projetado - weightData[0].projetado : 0;
 
   /* ── Timeline Panel ── */
   const timelinePanel = (
@@ -275,25 +270,25 @@ export function Planning() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {[
             {
-              label: "Ganho Projetado",
-              value: `+${totalProjetado.toLocaleString("pt-BR")} kg`,
-              sub: "ao final de 8 semanas",
+              label: "Peso Total Projetado",
+              value: `${totalProjetado.toLocaleString("pt-BR")} kg`,
+              sub: economics ? `em ${Math.round(economics.simulationDays / 7)} semanas` : "",
               color: "text-emerald-600",
               bg: "bg-emerald-50",
               border: "border-emerald-200",
             },
             {
-              label: "Ganho Realizado",
-              value: `+${totalRealizado.toLocaleString("pt-BR")} kg`,
-              sub: `semanas 1–${semanaAtual} confirmadas`,
+              label: "Movimentações Previstas",
+              value: economics ? `${economics.totalMoves}` : "\u2014",
+              sub: "trocas de piquete estimadas",
               color: "text-blue-600",
               bg: "bg-blue-50",
               border: "border-blue-200",
             },
             {
-              label: "Próxima Semana",
-              value: "+450 kg",
-              sub: "ganho estimado (Sem 4)",
+              label: "Ganho Semanal Estimado",
+              value: `+${nextWeekGain.toLocaleString("pt-BR")} kg`,
+              sub: "por semana (total do rebanho)",
               color: "text-amber-600",
               bg: "bg-amber-50",
               border: "border-amber-200",
@@ -318,10 +313,6 @@ export function Planning() {
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-0.5 bg-emerald-500 rounded" />
                 <span className="text-xs text-gray-500">Projetado</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-0.5 bg-blue-500 rounded" />
-                <span className="text-xs text-gray-500">Realizado</span>
               </div>
             </div>
           </div>
@@ -350,7 +341,7 @@ export function Planning() {
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine
-                x="Sem 3"
+                x="Hoje"
                 stroke="#d1d5db"
                 strokeDasharray="4 4"
                 label={{ value: "Hoje", position: "top", fontSize: 11, fill: "#9ca3af" }}
@@ -364,15 +355,7 @@ export function Planning() {
                 dot={false}
                 activeDot={{ r: 5, fill: "#10b981" }}
               />
-              <Line
-                type="monotone"
-                dataKey="realizado"
-                stroke="#3b82f6"
-                strokeWidth={2.5}
-                dot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: "#3b82f6" }}
-                connectNulls={false}
-              />
+
             </LineChart>
           </ResponsiveContainer>
         </div>

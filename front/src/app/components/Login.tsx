@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Leaf, Mail, Lock, ArrowRight, AlertTriangle } from "lucide-react";
+import { Leaf, Mail, Lock, ArrowRight, AlertTriangle, User } from "lucide-react";
 import api from "../api";
 
 interface LoginProps {
@@ -7,21 +7,32 @@ interface LoginProps {
 }
 
 export function Login({ onLogin }: LoginProps) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setSuccessMsg(null);
 
     try {
-      const response = await api.post("/api/auth/login", { email, password });
-      const { access_token } = response.data;
-      localStorage.setItem("access_token", access_token);
-      onLogin();
+      if (isLogin) {
+        const response = await api.post("/api/auth/login", { email, password });
+        const { access_token } = response.data;
+        localStorage.setItem("access_token", access_token);
+        onLogin();
+      } else {
+        await api.post("/api/auth/register", { name, email, password });
+        setSuccessMsg("Conta criada com sucesso! Faça login para continuar.");
+        setIsLogin(true);
+        setPassword("");
+      }
     } catch (err: any) {
       const msg = err.response?.data?.msg || "Erro ao conectar com o servidor";
       setError(msg);
@@ -50,6 +61,21 @@ export function Login({ onLogin }: LoginProps) {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
+            {!isLogin && (
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-green-100/50 group-focus-within:text-green-400 transition-colors">
+                  <User size={20} />
+                </div>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-green-100/40 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-400/50 transition-all duration-300"
+                  placeholder="Seu nome completo"
+                />
+              </div>
+            )}
+
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-green-100/50 group-focus-within:text-green-400 transition-colors">
                 <Mail size={20} />
@@ -77,18 +103,25 @@ export function Login({ onLogin }: LoginProps) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 rounded border-white/20 bg-white/5 text-green-500 focus:ring-green-500/50 focus:ring-offset-0" />
-              <span className="text-green-50/80 hover:text-white transition-colors">Lembrar de mim</span>
-            </label>
-            <a href="#" className="text-green-400 hover:text-green-300 transition-colors">Esqueceu a senha?</a>
-          </div>
+          {isLogin && (
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 rounded border-white/20 bg-white/5 text-green-500 focus:ring-green-500/50 focus:ring-offset-0" />
+                <span className="text-green-50/80 hover:text-white transition-colors">Lembrar de mim</span>
+              </label>
+              <a href="#" className="text-green-400 hover:text-green-300 transition-colors">Esqueceu a senha?</a>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/15 border border-red-400/30 text-red-200 text-sm animate-in fade-in">
               <AlertTriangle size={16} className="shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+          {successMsg && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 text-sm animate-in fade-in">
+              <span>{successMsg}</span>
             </div>
           )}
 
@@ -101,7 +134,7 @@ export function Login({ onLogin }: LoginProps) {
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             ) : (
               <>
-                Entrar no Sistema
+                {isLogin ? "Entrar no Sistema" : "Criar Minha Conta"}
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </>
             )}
@@ -109,7 +142,29 @@ export function Login({ onLogin }: LoginProps) {
         </form>
 
         <div className="mt-8 text-center text-sm text-green-50/60">
-          Não tem uma conta? <a href="#" className="text-green-400 hover:text-green-300 font-medium transition-colors">Fale com um consultor</a>
+          {isLogin ? (
+            <>
+              Não tem uma conta?{" "}
+              <button
+                type="button"
+                onClick={() => { setIsLogin(false); setError(null); setSuccessMsg(null); }}
+                className="text-green-400 hover:text-green-300 font-medium transition-colors"
+              >
+                Criar conta
+              </button>
+            </>
+          ) : (
+            <>
+              Já tem uma conta?{" "}
+              <button
+                type="button"
+                onClick={() => { setIsLogin(true); setError(null); setSuccessMsg(null); }}
+                className="text-green-400 hover:text-green-300 font-medium transition-colors"
+              >
+                Fazer login
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
