@@ -37,11 +37,13 @@ function biomassColor(v: number) {
 interface DashboardProps {
   farmName?: string;
   updateTrigger?: number;
+  onOpenSettings?: () => void;
 }
 
-export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }: DashboardProps) {
+export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0, onOpenSettings }: DashboardProps) {
   const [piquetes, setPiquetes] = useState<Piquete[]>([]);
   const [selected, setSelected] = useState<Piquete | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [height, setHeight] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -52,6 +54,7 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDashboardData = async () => {
+    setIsLoading(true);
     try {
       const { data } = await api.get("/api/evaluation");
       const mapped: Piquete[] = data.areas.map((a: any) => {
@@ -91,9 +94,13 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
       setPiquetes(mapped);
       if (mapped.length > 0) {
         setSelected(prev => mapped.find(p => p.id === prev?.id) || mapped[0]);
+      } else {
+        setSelected(null);
       }
     } catch (err) {
       console.error("Erro ao buscar dados do dashboard", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -166,7 +173,37 @@ export function Dashboard({ farmName = "Fazenda Santa Cruz", updateTrigger = 0 }
     setMobileTab("details");
   }
 
-  if (!selected) return null;
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center h-full bg-[#f7f9f4]">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw size={24} className="text-green-600 animate-spin" />
+          <p className="text-gray-500 text-sm">Carregando dados...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (piquetes.length === 0 || !selected) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center bg-[#f7f9f4]">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+          <Leaf size={36} className="text-green-700" />
+        </div>
+        <h2 className="text-2xl font-semibold text-gray-800 mb-2">Bem-vindo ao PastoCerto!</h2>
+        <p className="text-gray-500 max-w-md mb-8">
+          Parece que você ainda não tem áreas (piquetes) cadastradas. Para começar a gerenciar seu rebanho e planejar suas pastagens, configure sua propriedade agora mesmo.
+        </p>
+        <Button 
+          onClick={onOpenSettings}
+          className="bg-green-700 hover:bg-green-800 text-white gap-2 px-6 py-5 rounded-xl text-base shadow-sm hover:shadow-md transition-all"
+        >
+          <MapPin size={18} />
+          Configurar Propriedade
+        </Button>
+      </div>
+    );
+  }
 
   const cfg = statusConfig[selected.status];
   const StatusIcon = cfg.icon;

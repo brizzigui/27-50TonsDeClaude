@@ -123,7 +123,7 @@ export default function App() {
 
       {/* Screen content */}
       <main className="flex-1 overflow-hidden">
-        {screen === "dashboard" ? <Dashboard farmName={farmName} updateTrigger={updateTrigger} /> : <Planning updateTrigger={updateTrigger} />}
+        {screen === "dashboard" ? <Dashboard farmName={farmName} updateTrigger={updateTrigger} onOpenSettings={() => setSettingsOpen(true)} /> : <Planning updateTrigger={updateTrigger} />}
       </main>
 
       {/* User Profile Modal */}
