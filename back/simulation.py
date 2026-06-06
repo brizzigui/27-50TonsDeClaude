@@ -47,7 +47,7 @@ MARGEM_OPORTUNIDADE    = 500.0   # diferença mínima para troca por oportunidad
 ESTADIA_MINIMA_DIAS    = 3       # dias mínimos no piquete antes de trocar por oportunidade
 
 # Limites de simulação
-LIMITE_DIAS_COM_ALVO   = 365
+LIMITE_DIAS_COM_ALVO   = 3650
 LIMITE_DIAS_SEM_ALVO   = 180
 
 # Econômicos (defaults — idealmente viriam do banco)
