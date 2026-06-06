@@ -4,7 +4,7 @@ simulation.py
 Simulação de rotacionamento de pastagem para rebanhos bovinos.
 
 Exporta:
-    simular_rotacao(lot, areas_db) → (timeline, weight_projection, summary)
+    simular_rotacao(lot, areas_db) → (timeline, weight_projection, summary, area_biomass_history)
 """
 
 from __future__ import annotations
@@ -130,6 +130,7 @@ class _SimState:
     event_id: int = 0
     timeline: list[dict] = field(default_factory=list)
     weight_projection: list[dict] = field(default_factory=list)
+    area_biomass_history: dict[int, list[dict]] = field(default_factory=dict)
 
     @property
     def current_area(self) -> Optional[_AreaState]:
@@ -209,6 +210,19 @@ class _SimState:
             "week":               dia // 7,
             "average_weight_kg":  round(self.peso_medio, 1),
         })
+
+    def registrar_biomassa_areas(self, dia: int) -> None:
+        """Registra a biomassa (kg/ha) de cada piquete no dia dado."""
+        for area_id, area in self.areas.items():
+            if area_id not in self.area_biomass_history:
+                self.area_biomass_history[area_id] = []
+            self.area_biomass_history[area_id].append({
+                "day":           dia,
+                "date":          (self.today + timedelta(days=dia)).isoformat(),
+                "week":          dia // 7,
+                "biomass_kg_ha": round(area.biomassa_ha, 1),
+                "occupied":      area_id == self.current_area_id,
+            })
 
 
 # ─────────────────────────────────────────────
@@ -322,6 +336,7 @@ def simular_rotacao(lot, areas_db) -> tuple[list, list, dict]:
 
     # Ponto inicial
     state.registrar_peso(0)
+    state.registrar_biomassa_areas(0)
 
     for dia in range(1, max_dias + 1):
 
@@ -365,6 +380,7 @@ def simular_rotacao(lot, areas_db) -> tuple[list, list, dict]:
         # 6. Ponto semanal
         if dia % 7 == 0:
             state.registrar_peso(dia)
+            state.registrar_biomassa_areas(dia)
 
 
     # ─── Summary ───────────────────────────────
@@ -407,4 +423,4 @@ def simular_rotacao(lot, areas_db) -> tuple[list, list, dict]:
         },
     }
 
-    return state.timeline, state.weight_projection, summary
+    return state.timeline, state.weight_projection, summary, state.area_biomass_history

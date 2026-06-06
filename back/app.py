@@ -382,16 +382,18 @@ def evaluation():
     timeline = []
     weight_projection = []
     summary = {}
+    area_biomass_history = {}
 
     if lot.current_area_id and areas:
-            timeline, weight_projection, summary = simular_rotacao(lot, areas)
+            timeline, weight_projection, summary, area_biomass_history = simular_rotacao(lot, areas)
         
     return jsonify({
         "lot": lot_data,
         "areas": areas_list,
         "timeline": timeline,
         "weight_projection": weight_projection,
-        "summary": summary
+        "summary": summary,
+        "area_biomass_history": area_biomass_history
     }), 200
 
 @app.route('/api/profile', methods=['GET'])
