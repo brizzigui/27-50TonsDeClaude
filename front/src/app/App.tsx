@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { LayoutDashboard, CalendarRange, Leaf, Bell, Settings } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { LayoutDashboard, CalendarRange, Leaf, Bell, Settings, LogOut } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
@@ -8,12 +8,27 @@ import { UserProfile } from "./components/UserProfile";
 type Screen = "login" | "dashboard" | "planning";
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("login");
+  const [screen, setScreen] = useState<Screen>(() => {
+    // Se já tiver token, pula o login
+    return localStorage.getItem("access_token") ? "dashboard" : "login";
+  });
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("access_token");
+    setScreen("login");
+  }, []);
+
+  // Escuta evento de logout automático (401 do interceptor)
+  useEffect(() => {
+    window.addEventListener("auth:logout", handleLogout);
+    return () => window.removeEventListener("auth:logout", handleLogout);
+  }, [handleLogout]);
 
   if (screen === "login") {
     return <Login onLogin={() => setScreen("dashboard")} />;
   }
+
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f7f9f4]">

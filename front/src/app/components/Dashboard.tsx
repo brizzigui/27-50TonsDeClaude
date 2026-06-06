@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import axios from "axios";
+import { useState, useRef, useEffect } from "react";
+import api from "../api";
 import {
   MapPin, Leaf, Clock, Users, Camera, Upload,
   CheckCircle, AlertCircle, XCircle, RefreshCw, X, Ruler, ChevronDown
@@ -22,18 +22,6 @@ interface Piquete {
   capacity: number;
 }
 
-const PIQUETES: Piquete[] = [
-  { id: 1, name: "Área 01", subtitle: "Baixada", area: 12, status: "green", lastEval: "há 3 dias", cattle: 35, category: "Garrotes 300kg", biomass: 78, capacity: 45 },
-  { id: 2, name: "Área 02", subtitle: "Cerrado", area: 8, status: "yellow", lastEval: "há 1 dia", cattle: 28, category: "Vacas 450kg", biomass: 45, capacity: 30 },
-  { id: 3, name: "Área 03", subtitle: "Alto", area: 15, status: "green", lastEval: "há 5 dias", cattle: 42, category: "Novilhos 350kg", biomass: 92, capacity: 55 },
-  { id: 4, name: "Área 04", subtitle: "Várzea", area: 10, status: "red", lastEval: "há 7 dias", cattle: 18, category: "Garrotes 280kg", biomass: 22, capacity: 38 },
-  { id: 5, name: "Área 05", subtitle: "Serra", area: 20, status: "green", lastEval: "há 2 dias", cattle: 55, category: "Touros 600kg", biomass: 65, capacity: 70 },
-  { id: 6, name: "Área 06", subtitle: "Brejo", area: 6, status: "yellow", lastEval: "há 4 dias", cattle: 15, category: "Bezerros 150kg", biomass: 38, capacity: 22 },
-  { id: 7, name: "Área 07", subtitle: "Manga", area: 18, status: "green", lastEval: "há 1 dia", cattle: 48, category: "Novilhas 320kg", biomass: 85, capacity: 60 },
-  { id: 8, name: "Área 08", subtitle: "Fundo", area: 11, status: "red", lastEval: "há 10 dias", cattle: 22, category: "Garrotes 290kg", biomass: 15, capacity: 40 },
-  { id: 9, name: "Área 09", subtitle: "Norte", area: 14, status: "green", lastEval: "há 2 dias", cattle: 38, category: "Vacas 400kg", biomass: 72, capacity: 50 },
-];
-
 const statusConfig = {
   green: { label: "Saudável", color: "bg-emerald-500", textColor: "text-emerald-700", bgLight: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle },
   yellow: { label: "Atenção", color: "bg-amber-400", textColor: "text-amber-700", bgLight: "bg-amber-50", border: "border-amber-200", icon: AlertCircle },
@@ -47,7 +35,8 @@ function biomassColor(v: number) {
 }
 
 export function Dashboard() {
-  const [selected, setSelected] = useState<Piquete>(PIQUETES[0]);
+  const [piquetes, setPiquetes] = useState<Piquete[]>([]);
+  const [selected, setSelected] = useState<Piquete | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [height, setHeight] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -56,6 +45,56 @@ export function Dashboard() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchDashboardData = async () => {
+    try {
+      const { data } = await api.get("/api/evaluation");
+      const mapped: Piquete[] = data.areas.map((a: any) => {
+        let name = a.name;
+        let subtitle = "";
+        if (a.name.includes(" - ")) {
+          const parts = a.name.split(" - ");
+          name = parts[0];
+          subtitle = parts[1];
+        }
+
+        const biomass = a.last_biomass_percent ?? 0;
+        const status = biomass >= 70 ? "green" : biomass >= 40 ? "yellow" : "red";
+        
+        let lastEval = "Sem dados";
+        if (a.last_measured_at) {
+          const diffDays = Math.floor((new Date().getTime() - new Date(a.last_measured_at).getTime()) / (1000 * 3600 * 24));
+          lastEval = diffDays === 0 ? "hoje" : `há ${diffDays} dias`;
+        }
+
+        const hasLot = data.lot && data.lot.current_area_id === a.id;
+        
+        return {
+          id: a.id,
+          name,
+          subtitle,
+          area: a.area_hectares,
+          status,
+          lastEval,
+          cattle: hasLot ? data.lot.head_count : 0,
+          category: hasLot ? `${data.lot.animal_category} ${data.lot.average_weight_kg}kg` : "",
+          biomass: Math.round(biomass),
+          capacity: Math.round(a.area_hectares * 3.5), // Estimativa simples para o front
+        };
+      });
+
+      setPiquetes(mapped);
+      if (mapped.length > 0) {
+        setSelected(prev => mapped.find(p => p.id === prev?.id) || mapped[0]);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar dados do dashboard", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,22 +116,24 @@ export function Dashboard() {
   }
 
   async function handleSubmit() {
-    if (!height) return;
+    if (!height || !selected) return;
     setSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append("piqueteId", String(selected.id));
-      formData.append("altura", height);
-      if (photo) formData.append("imagem", photo);
+      const payload = {
+        area_id: selected.id,
+        height_cm: parseFloat(height),
+        green_percent: selected.biomass > 0 ? selected.biomass : 50,
+        image_base64: photoPreview, // Já vem no formato data:image/... base64
+        recent_weather_condition: "Bom" // Mock ou capturar no form depois
+      };
 
-      // POST para /api/update — endpoint real a ser conectado ao backend
-      await axios.post("/api/update", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      }).catch(() => {
-        // Simula sucesso em ambiente de desenvolvimento (sem backend)
-      });
+      await api.post("/api/area/update", payload);
 
       setSubmitSuccess(true);
+      
+      // Atualiza os dados do dashboard após o envio
+      await fetchDashboardData();
+
       setTimeout(() => {
         setSubmitSuccess(false);
         setModalOpen(false);
@@ -100,6 +141,8 @@ export function Dashboard() {
         setPhoto(null);
         setPhotoPreview(null);
       }, 1800);
+    } catch (err) {
+      console.error("Erro ao enviar leitura", err);
     } finally {
       setSubmitting(false);
     }
@@ -118,9 +161,11 @@ export function Dashboard() {
     setMobileTab("details");
   }
 
+  if (!selected) return null;
+
   const cfg = statusConfig[selected.status];
   const StatusIcon = cfg.icon;
-  const occupancyPct = Math.round((selected.cattle / selected.capacity) * 100);
+  const occupancyPct = selected.capacity > 0 ? Math.round((selected.cattle / selected.capacity) * 100) : 0;
 
   /* ── Map Panel (areas grid) ── */
   const mapPanel = (
@@ -146,7 +191,7 @@ export function Dashboard() {
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-          {PIQUETES.map((p) => {
+          {piquetes.map((p) => {
             const s = statusConfig[p.status];
             const isSelected = selected.id === p.id;
             return (
@@ -163,19 +208,28 @@ export function Dashboard() {
               >
                 <div className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${s.color}`} />
                 <Leaf size={18} className={isSelected ? "text-green-600" : "text-gray-400"} />
-                <p className={`mt-1.5 text-xs leading-tight ${isSelected ? "text-green-800" : "text-gray-700"}`}>
+                <p className={`mt-1.5 text-xs font-semibold leading-tight ${isSelected ? "text-green-800" : "text-gray-700"}`}>
                   {p.name}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">{p.subtitle}</p>
-                <div className="mt-2">
-                  <div className={`h-1 rounded-full w-full ${isSelected ? "bg-green-100" : "bg-gray-100"}`}>
+                <p className="text-[10px] text-gray-500 mt-0.5">{p.subtitle || '\u00A0'}</p>
+                
+                {/* Indicador de gado presente */}
+                {p.cattle > 0 && (
+                  <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[10px] font-medium border border-blue-100">
+                    <Users size={10} />
+                    {p.cattle}
+                  </div>
+                )}
+
+                <div className="mt-2.5">
+                  <div className={`h-1.5 rounded-full w-full ${isSelected ? "bg-green-100" : "bg-gray-100"}`}>
                     <div
-                      className={`h-1 rounded-full transition-all ${biomassColor(p.biomass)}`}
+                      className={`h-1.5 rounded-full transition-all ${biomassColor(p.biomass)}`}
                       style={{ width: `${p.biomass}%` }}
                     />
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{p.biomass}% biomassa</p>
+                <p className="text-[10px] text-gray-400 mt-1">{p.biomass}% biomassa</p>
               </button>
             );
           })}
@@ -185,17 +239,17 @@ export function Dashboard() {
       {/* Summary bar */}
       <div className="border-t border-gray-100 px-4 sm:px-5 py-3 bg-gray-50 flex gap-4 sm:gap-5">
         <div className="text-center">
-          <p className="text-lg text-gray-800">{PIQUETES.reduce((a, p) => a + p.cattle, 0)}</p>
+          <p className="text-lg text-gray-800">{piquetes.reduce((a, p) => a + p.cattle, 0)}</p>
           <p className="text-xs text-gray-500">Total Cabeças</p>
         </div>
         <div className="w-px bg-gray-200" />
         <div className="text-center">
-          <p className="text-lg text-gray-800">{PIQUETES.reduce((a, p) => a + p.area, 0)} ha</p>
+          <p className="text-lg text-gray-800">{piquetes.reduce((a, p) => a + p.area, 0)} ha</p>
           <p className="text-xs text-gray-500">Área Total</p>
         </div>
         <div className="w-px bg-gray-200" />
         <div className="text-center">
-          <p className="text-lg text-emerald-600">{PIQUETES.filter(p => p.status === "green").length}</p>
+          <p className="text-lg text-emerald-600">{piquetes.filter(p => p.status === "green").length}</p>
           <p className="text-xs text-gray-500">Saudáveis</p>
         </div>
       </div>

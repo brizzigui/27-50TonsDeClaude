@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "../api";
 import {
   ArrowLeftRight, Pause, ShoppingCart, TrendingUp,
   Calendar, AlertCircle, CheckCircle, ChevronRight, ChevronDown
@@ -9,7 +10,7 @@ import {
 } from "recharts";
 import { Badge } from "./ui/badge";
 
-type ActionType = "mover" | "descansar" | "venda";
+type ActionType = "mover" | "descansar" | "venda" | "alerta";
 
 interface TimelineEvent {
   id: number;
@@ -23,89 +24,6 @@ interface TimelineEvent {
   piquete?: string;
   destino?: string;
 }
-
-const TIMELINE: TimelineEvent[] = [
-  {
-    id: 1,
-    date: "2026-06-06",
-    dateLabel: "HOJE",
-    urgent: true,
-    action: "mover",
-    title: "Mover rebanho",
-    detail: "Piquete 04 → Piquete 07",
-    reason: "Piquete 04 atingiu limite de massa seca (22%)",
-    piquete: "Piquete 04",
-    destino: "Piquete 07",
-  },
-  {
-    id: 2,
-    date: "2026-06-07",
-    dateLabel: "AMANHÃ",
-    urgent: false,
-    action: "descansar",
-    title: "Período de descanso",
-    detail: "Piquete 02 — 21 dias",
-    reason: "Biomassa abaixo de 45% — recuperação necessária",
-    piquete: "Piquete 02",
-  },
-  {
-    id: 3,
-    date: "2026-06-11",
-    dateLabel: "EM 5 DIAS",
-    urgent: false,
-    action: "mover",
-    title: "Mover rebanho",
-    detail: "Piquete 01 → Piquete 03",
-    reason: "Piquete 01 atingirá limite de carga animal",
-    piquete: "Piquete 01",
-    destino: "Piquete 03",
-  },
-  {
-    id: 4,
-    date: "2026-06-18",
-    dateLabel: "EM 12 DIAS",
-    urgent: false,
-    action: "venda",
-    title: "Rebanho pronto para venda",
-    detail: "Piquete 05 — 55 cabeças",
-    reason: "Peso médio projetado atingido: 520kg/cabeça",
-    piquete: "Piquete 05",
-  },
-  {
-    id: 5,
-    date: "2026-06-24",
-    dateLabel: "EM 18 DIAS",
-    urgent: false,
-    action: "descansar",
-    title: "Período de descanso",
-    detail: "Piquete 07 — 28 dias",
-    reason: "Ciclo de recuperação programado pós-ocupação",
-    piquete: "Piquete 07",
-  },
-  {
-    id: 6,
-    date: "2026-07-01",
-    dateLabel: "EM 25 DIAS",
-    urgent: false,
-    action: "mover",
-    title: "Mover rebanho",
-    detail: "Piquete 09 → Piquete 05",
-    reason: "Piquete 05 estará pronto após venda e limpeza",
-    piquete: "Piquete 09",
-    destino: "Piquete 05",
-  },
-];
-
-const WEIGHT_DATA = [
-  { semana: "Sem 1", projetado: 450, realizado: 420 },
-  { semana: "Sem 2", projetado: 890, realizado: 865 },
-  { semana: "Sem 3", projetado: 1280, realizado: 1210 },
-  { semana: "Sem 4", projetado: 1620, realizado: null },
-  { semana: "Sem 5", projetado: 1950, realizado: null },
-  { semana: "Sem 6", projetado: 2230, realizado: null },
-  { semana: "Sem 7", projetado: 2480, realizado: null },
-  { semana: "Sem 8", projetado: 2700, realizado: null },
-];
 
 const actionConfig: Record<ActionType, { Icon: React.ElementType; color: string; bg: string; border: string; label: string }> = {
   mover: {
@@ -129,6 +47,13 @@ const actionConfig: Record<ActionType, { Icon: React.ElementType; color: string;
     border: "border-emerald-200",
     label: "Venda",
   },
+  alerta: {
+    Icon: AlertCircle,
+    color: "text-red-600",
+    bg: "bg-red-50",
+    border: "border-red-200",
+    label: "Alerta Crítico",
+  },
 };
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
@@ -149,9 +74,76 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 
 export function Planning() {
   const [mobileTab, setMobileTab] = useState<"timeline" | "analytics">("timeline");
-  const totalProjetado = WEIGHT_DATA[WEIGHT_DATA.length - 1].projetado;
-  const totalRealizado = WEIGHT_DATA.filter(d => d.realizado !== null).reduce((_, d) => d.realizado ?? 0, 0);
-  const semanaAtual = WEIGHT_DATA.filter(d => d.realizado !== null).length;
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [weightData, setWeightData] = useState<any[]>([]);
+  const [economics, setEconomics] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const { data } = await api.get("/api/evaluation");
+        if (data.timeline) {
+          const mapped = data.timeline.map((item: any) => {
+            const days = item.day_offset;
+            let dateLabel = `EM ${days} DIAS`;
+            if (days === 0) dateLabel = "HOJE";
+            else if (days === 1) dateLabel = "AMANHÃ";
+
+            let title = "Evento de Manejo";
+            if (item.action === "mover") title = "Mover rebanho";
+            if (item.action === "venda") title = "Rebanho pronto para venda";
+            if (item.action === "alerta") title = "Atenção Crítica";
+
+            return {
+              id: item.id,
+              date: item.date,
+              dateLabel,
+              urgent: days <= 2,
+              action: item.action as ActionType,
+              title,
+              detail: item.message,
+              reason: item.reason,
+              piquete: item.from_area_name,
+              destino: item.to_area_name,
+            };
+          });
+          setTimeline(mapped);
+        }
+
+        if (data.weight_projection && data.lot) {
+          const headCount = data.lot.head_count;
+          const mappedWeights = data.weight_projection.map((w: any) => {
+            const totalKg = w.average_weight_kg * headCount;
+            return {
+              semana: w.week === 0 ? "Hoje" : `Sem ${w.week}`,
+              projetado: totalKg,
+              realizado: w.week === 0 ? totalKg : null, // Hoje é o único dado "realizado"
+            };
+          });
+          setWeightData(mappedWeights);
+        }
+
+        if (data.summary && data.summary.economics) {
+          setEconomics({
+            ...data.summary.economics,
+            simulationDays: data.summary.simulation_days,
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao buscar dados do planning", err);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const [weightData, setWeightData] = useState<any[]>([]);
+
+  const totalProjetado = weightData.length > 0 ? weightData[weightData.length - 1].projetado : 0;
+  
+  // O realizado real no MVP é apenas o peso de hoje
+  const realizedPoints = weightData.filter(d => d.realizado !== null);
+  const totalRealizado = realizedPoints.length > 0 ? realizedPoints[realizedPoints.length - 1].realizado : 0;
+  const semanaAtual = realizedPoints.length;
 
   /* ── Timeline Panel ── */
   const timelinePanel = (
@@ -179,7 +171,10 @@ export function Planning() {
           {/* Vertical line */}
           <div className="absolute left-[42px] top-4 bottom-4 w-px bg-gray-100" />
 
-          {TIMELINE.map((event, i) => {
+          {timeline.length === 0 && (
+            <div className="p-8 text-center text-gray-500 text-sm">Nenhuma ação planejada para os próximos dias.</div>
+          )}
+          {timeline.map((event, i) => {
             const cfg = actionConfig[event.action];
             return (
               <div key={event.id} className="flex gap-0 px-3 sm:px-4 py-2 group">
@@ -194,7 +189,7 @@ export function Planning() {
                   `}>
                     <cfg.Icon size={14} className={event.urgent ? cfg.color : "text-gray-400"} />
                   </div>
-                  {i < TIMELINE.length - 1 && <div className="flex-1 w-px bg-gray-100 mt-1" />}
+                  {i < timeline.length - 1 && <div className="flex-1 w-px bg-gray-100 mt-1" />}
                 </div>
 
                 {/* Right: card */}
@@ -332,7 +327,7 @@ export function Planning() {
           </div>
 
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={WEIGHT_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <LineChart data={weightData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <defs>
                 <linearGradient id="colorProjetado" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
@@ -385,23 +380,47 @@ export function Planning() {
         {/* Impacto econômico */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5">
           <h3 className="text-gray-800 mb-4">Impacto Econômico Projetado</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {[
-              { label: "Receita Projetada (8 sem)", value: "R$ 48.600", sub: "@ R$ 18,00/kg vivo", positive: true },
-              { label: "Ganho vs. Saída Antecipada", value: "+R$ 12.300", sub: "benefício de esperar o ponto ideal", positive: true },
-              { label: "Custo de Suplementação", value: "R$ 3.200", sub: "estimado para 8 semanas", positive: false },
-              { label: "Margem Líquida Estimada", value: "R$ 45.400", sub: "após custos variáveis", positive: true },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${item.positive ? "bg-emerald-500" : "bg-amber-400"}`} />
-                <div>
-                  <p className="text-xs text-gray-500">{item.label}</p>
-                  <p className={`text-lg mt-0.5 ${item.positive ? "text-gray-800" : "text-amber-600"}`}>{item.value}</p>
-                  <p className="text-xs text-gray-400">{item.sub}</p>
+          {economics ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {[
+                { 
+                  label: `Receita Projetada (${Math.round(economics.simulationDays / 7)} sem)`, 
+                  value: `R$ ${economics.receita_projetada.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 
+                  sub: `@ R$ ${economics.preco_kg_vivo.toFixed(2).replace('.', ',')}/kg vivo`, 
+                  positive: true 
+                },
+                { 
+                  label: "Ganho vs. Saída Antecipada", 
+                  value: `+R$ ${economics.ganho_vs_atual.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 
+                  sub: "benefício de esperar o ponto ideal", 
+                  positive: true 
+                },
+                { 
+                  label: "Custo de Suplementação", 
+                  value: `R$ ${economics.custo_suplementacao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 
+                  sub: `estimado para ${Math.round(economics.simulationDays / 7)} semanas`, 
+                  positive: false 
+                },
+                { 
+                  label: "Margem Líquida Estimada", 
+                  value: `R$ ${economics.margem_liquida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 
+                  sub: "após custos variáveis", 
+                  positive: true 
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${item.positive ? "bg-emerald-500" : "bg-amber-400"}`} />
+                  <div>
+                    <p className="text-xs text-gray-500">{item.label}</p>
+                    <p className={`text-lg mt-0.5 ${item.positive ? "text-gray-800" : "text-amber-600"}`}>{item.value}</p>
+                    <p className="text-xs text-gray-400">{item.sub}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 text-center py-4">Carregando dados econômicos...</div>
+          )}
         </div>
       </div>
     </div>

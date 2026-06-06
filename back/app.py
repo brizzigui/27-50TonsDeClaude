@@ -1,12 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 from openai import OpenAI
 
 app = Flask(__name__)
+CORS(app, origins='*')
 
 # Configurações do Banco de Dados e JWT
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -25,6 +27,8 @@ class User(db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    phone = db.Column(db.String(20), nullable=True)
+    farm_name = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -555,6 +559,15 @@ def _simular_rotacao(lot, areas_db):
 
     total_moves = sum(1 for e in timeline if e['action'] == 'mover')
 
+    preco_kg_vivo = 18.0
+    custo_suplementacao_dia_cabeca = 1.5
+
+    receita_atual = lot.average_weight_kg * head_count * preco_kg_vivo
+    receita_projetada = peso_medio * head_count * preco_kg_vivo
+    ganho_vs_atual = receita_projetada - receita_atual
+    custo_suplementacao = sim_end_day * head_count * custo_suplementacao_dia_cabeca
+    margem_liquida = receita_projetada - custo_suplementacao
+
     summary = {
         'estimated_sale_date': (today + timedelta(days=sim_end_day)).isoformat() if sale_reached else None,
         'days_to_sale': sim_end_day if sale_reached else None,
@@ -562,6 +575,13 @@ def _simular_rotacao(lot, areas_db):
         'total_moves': total_moves,
         'sale_reached': sale_reached,
         'simulation_days': sim_end_day,
+        'economics': {
+            'preco_kg_vivo': preco_kg_vivo,
+            'receita_projetada': round(receita_projetada, 2),
+            'ganho_vs_atual': round(ganho_vs_atual, 2),
+            'custo_suplementacao': round(custo_suplementacao, 2),
+            'margem_liquida': round(margem_liquida, 2)
+        }
     }
 
     return timeline, weight_projection, summary
@@ -585,7 +605,8 @@ def evaluation():
         "area_hectares": a.area_hectares,
         "status": a.status,
         "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
-        "last_biomass_percent": a.last_biomass_percent
+        "last_biomass_percent": a.last_biomass_percent,
+        "last_measured_at": a.last_measured_at.isoformat() if a.last_measured_at else None
     } for a in areas]
 
     # Lot data for response
@@ -615,6 +636,42 @@ def evaluation():
         "weight_projection": weight_projection,
         "summary": summary
     }), 200
+
+@app.route('/api/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"msg": "Usuário não encontrado"}), 404
+
+    return jsonify({
+        "name": user.name,
+        "email": user.email,
+        "phone": user.phone or "",
+        "farm_name": user.farm_name or ""
+    }), 200
+
+@app.route('/api/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"msg": "Usuário não encontrado"}), 404
+
+    data = request.get_json()
+    if 'name' in data:
+        user.name = data['name']
+    if 'email' in data:
+        user.email = data['email']
+    if 'phone' in data:
+        user.phone = data['phone']
+    if 'farm_name' in data:
+        user.farm_name = data['farm_name']
+
+    db.session.commit()
+    return jsonify({"msg": "Perfil atualizado com sucesso"}), 200
 
 
 if __name__ == '__main__':

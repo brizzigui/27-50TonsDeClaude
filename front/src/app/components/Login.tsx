@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Leaf, Mail, Lock, ArrowRight } from "lucide-react";
+import { Leaf, Mail, Lock, ArrowRight, AlertTriangle } from "lucide-react";
+import api from "../api";
 
 interface LoginProps {
   onLogin: () => void;
@@ -9,16 +10,26 @@ export function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    setError(null);
+
+    try {
+      const response = await api.post("/api/auth/login", { email, password });
+      const { access_token } = response.data;
+      localStorage.setItem("access_token", access_token);
       onLogin();
-    }, 1000);
+    } catch (err: any) {
+      const msg = err.response?.data?.msg || "Erro ao conectar com o servidor";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 bg-[url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=2832&auto=format&fit=crop')] bg-cover bg-center relative">
@@ -73,6 +84,13 @@ export function Login({ onLogin }: LoginProps) {
             </label>
             <a href="#" className="text-green-400 hover:text-green-300 transition-colors">Esqueceu a senha?</a>
           </div>
+
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/15 border border-red-400/30 text-red-200 text-sm animate-in fade-in">
+              <AlertTriangle size={16} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <button
             type="submit"

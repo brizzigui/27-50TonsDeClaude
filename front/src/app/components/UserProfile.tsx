@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "../api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { User, Mail, Phone, MapPin, CheckCircle, Save } from "lucide-react";
@@ -9,25 +10,46 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ open, onOpenChange }: UserProfileProps) {
-  const [name, setName] = useState("João Victor");
-  const [email, setEmail] = useState("joao.victor@fazendasantacruz.com.br");
-  const [phone, setPhone] = useState("(62) 99876-5432");
-  const [farm, setFarm] = useState("Fazenda Santa Cruz");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [farm, setFarm] = useState("");
   
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (open) {
+      api.get("/api/profile")
+        .then(({ data }) => {
+          setName(data.name || "");
+          setEmail(data.email || "");
+          setPhone(data.phone || "");
+          setFarm(data.farm_name || "");
+        })
+        .catch(err => console.error("Erro ao buscar perfil", err));
+    }
+  }, [open]);
+
+  const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      await api.put("/api/profile", {
+        name,
+        email,
+        phone,
+        farm_name: farm
+      });
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
         onOpenChange(false);
       }, 1500);
-    }, 1000);
+    } catch (err) {
+      console.error("Erro ao salvar perfil", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
