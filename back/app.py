@@ -432,7 +432,8 @@ def update_profile():
 
 
 if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
     if os.getenv('PRODUCTION') == 'true':
-        app.run(port=5000)
+        app.run(port=port)
     else:
-        app.run(debug=True, port=5000)
+        app.run(debug=True, port=port)
