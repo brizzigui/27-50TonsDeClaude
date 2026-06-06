@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: parseInt(env.PORT || '5173', 10),
+      allowedHosts: ['localhost', 'pastocerto.brizzigui.com'],
     },
 
     // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
