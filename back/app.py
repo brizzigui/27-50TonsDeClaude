@@ -45,9 +45,8 @@ class PastureArea(db.Model):
     name = db.Column(db.String(120), nullable=False)
     area_hectares = db.Column(db.Float, nullable=False)
     grass_type = db.Column(db.String(120))
-    rotation_order = db.Column(db.Integer)
     status = db.Column(db.String(50), default='descanso', nullable=False)
-    last_quality_score = db.Column(db.Float)
+    last_estimated_biomass_kg = db.Column(db.Float)
     last_biomass_percent = db.Column(db.Float)
     last_measured_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -80,8 +79,21 @@ class PastureReading(db.Model):
     green_percent = db.Column(db.Float)
     biomass_percent = db.Column(db.Float)
     recent_weather_condition = db.Column(db.String(100))
-    quality_score = db.Column(db.Float)
+    estimated_biomass_kg = db.Column(db.Float)
     measured_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MovementRecommendation(db.Model):
+    __tablename__ = 'movement_recommendations'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    cattle_lot_id = db.Column(db.Integer, db.ForeignKey('cattle_lot.id', ondelete='CASCADE'), nullable=False)
+    from_area_id = db.Column(db.Integer, db.ForeignKey('pasture_areas.id'))
+    to_area_id = db.Column(db.Integer, db.ForeignKey('pasture_areas.id'))
+    action_type = db.Column(db.String(50), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 def create_db():
@@ -97,9 +109,9 @@ def create_db():
             db.session.commit()
             
             # Sample Pasture Areas
-            p1 = PastureArea(user_id=sample_user.id, name='Piquete 01 - Baixada', area_hectares=12.0, grass_type='Azevém', rotation_order=1, last_quality_score=85.0)
-            p2 = PastureArea(user_id=sample_user.id, name='Piquete 02 - Morro', area_hectares=10.0, grass_type='Braquiária', rotation_order=2, last_quality_score=50.0)
-            p3 = PastureArea(user_id=sample_user.id, name='Piquete 03 - Sede', area_hectares=8.0, grass_type='Pânico', rotation_order=3, last_quality_score=20.0)
+            p1 = PastureArea(user_id=sample_user.id, name='Piquete 01 - Baixada', area_hectares=12.0, grass_type='Azevém', last_estimated_biomass_kg=8500.0)
+            p2 = PastureArea(user_id=sample_user.id, name='Piquete 02 - Morro', area_hectares=10.0, grass_type='Braquiária', last_estimated_biomass_kg=5000.0)
+            p3 = PastureArea(user_id=sample_user.id, name='Piquete 03 - Sede', area_hectares=8.0, grass_type='Pânico', last_estimated_biomass_kg=2000.0)
             db.session.add_all([p1, p2, p3])
             db.session.commit()
 
@@ -174,8 +186,7 @@ def create_area():
         user_id=current_user_id,
         name=data.get('name'),
         area_hectares=data.get('area_hectares'),
-        grass_type=data.get('grass_type'),
-        rotation_order=data.get('rotation_order')
+        grass_type=data.get('grass_type')
     )
 
     db.session.add(new_area)
@@ -194,9 +205,8 @@ def get_areas():
         "name": a.name,
         "area_hectares": a.area_hectares,
         "grass_type": a.grass_type,
-        "rotation_order": a.rotation_order,
         "status": a.status,
-        "last_quality_score": a.last_quality_score,
+        "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
         "last_biomass_percent": a.last_biomass_percent,
         "last_measured_at": a.last_measured_at.isoformat() if a.last_measured_at else None
     } for a in areas]
@@ -330,20 +340,21 @@ def update_area():
             print("OPENAI_API_KEY não configurada.")
 
     green_percent = green_percent if green_percent is not None else 50
-    quality_score = area.area_hectares * height_cm * 180 * (green_percent/100)
+    estimated_biomass_kg = area.area_hectares * height_cm * 180 * (green_percent/100)
 
     # Create reading
     reading = PastureReading(
         pasture_area_id=area.id,
         height_cm=height_cm,
         green_percent=green_percent,
+        biomass_percent=green_percent,
         recent_weather_condition=recent_weather,
-        quality_score=quality_score
+        estimated_biomass_kg=estimated_biomass_kg
     )
     db.session.add(reading)
 
     # Update area
-    area.last_quality_score = quality_score
+    area.last_estimated_biomass_kg = estimated_biomass_kg
     area.last_biomass_percent = green_percent
     area.last_measured_at = datetime.utcnow()
     
@@ -351,7 +362,8 @@ def update_area():
     db.session.commit()
 
     return jsonify({
-        "quality_score": quality_score
+        "biomass_percent": green_percent,
+        "estimated_biomass_kg": estimated_biomass_kg
     }), 200
 
 @app.route('/api/evaluation', methods=['GET'])
@@ -378,8 +390,8 @@ def evaluation():
         "name": a.name,
         "area_hectares": a.area_hectares,
         "status": a.status,
-        "last_quality_score": a.last_quality_score,
-        "rotation_order": a.rotation_order
+        "last_estimated_biomass_kg": a.last_estimated_biomass_kg,
+        "last_biomass_percent": a.last_biomass_percent
     } for a in areas]
 
     recommendations = []
@@ -388,42 +400,39 @@ def evaluation():
         if current_area:
             action = 'manter'
             message = 'Manter na área atual.'
+            target_area_id = None
             
-            score = current_area.last_quality_score
+            estimated_biomass_kg = current_area.last_estimated_biomass_kg
             
-            if score is not None:
-                # O score agora representa a Biomassa (Matéria Seca) total em kg.
+            if estimated_biomass_kg is not None:
+                # A biomassa estimada representa a Matéria Seca total em kg.
                 # Consumo diário do lote estimado em 2.5% do peso vivo.
                 total_live_weight_kg = lot.head_count * lot.average_weight_kg
                 daily_intake = total_live_weight_kg * 0.025
                 
                 # Assumimos uma eficiência de pastejo de 50% (metade fica de resíduo para a planta rebrotar)
-                available_intake = score * 0.5
+                available_intake = estimated_biomass_kg * 0.5
                 
                 days_remaining = available_intake / daily_intake if daily_intake > 0 else 999
                 
                 if days_remaining < 3:
                     # Crítico: Menos de 3 dias de pasto, precisa mover!
-                    next_area = None
                     candidate_areas = PastureArea.query.filter(
                         PastureArea.user_id == current_user_id,
                         PastureArea.id != current_area.id
-                    ).order_by(PastureArea.rotation_order.asc()).all()
-                    
-                    # Reordena para começar logo após o piquete atual
-                    sorted_candidates = [a for a in candidate_areas if a.rotation_order > current_area.rotation_order] + \
-                                        [a for a in candidate_areas if a.rotation_order <= current_area.rotation_order]
+                    ).order_by(PastureArea.id.asc()).all()
                     
                     best_target = None
-                    for area in sorted_candidates:
-                        if area.last_quality_score is not None:
-                            area_days = (area.last_quality_score * 0.5) / daily_intake if daily_intake > 0 else 999
+                    for area in candidate_areas:
+                        if area.last_estimated_biomass_kg is not None:
+                            area_days = (area.last_estimated_biomass_kg * 0.5) / daily_intake if daily_intake > 0 else 999
                             if area_days >= 7:  # A próxima área precisa ter pelo menos 7 dias de comida
                                 best_target = area
                                 break
                     
                     if best_target:
                         action = 'mover'
+                        target_area_id = best_target.id
                         message = f'Mover do {current_area.name} para o {best_target.name}. Pasto atual suporta apenas ~{int(days_remaining)} dias.'
                     else:
                         action = 'medir'
@@ -441,10 +450,38 @@ def evaluation():
                 action = 'medir'
                 message = 'Sem dados recentes da área atual. Atualize a leitura com uma foto.'
 
+            latest_recommendation = MovementRecommendation.query.filter_by(
+                user_id=current_user_id,
+                cattle_lot_id=lot.id
+            ).order_by(MovementRecommendation.created_at.desc()).first()
+
+            should_save_recommendation = (
+                latest_recommendation is None or
+                latest_recommendation.action_type != action or
+                latest_recommendation.from_area_id != current_area.id or
+                latest_recommendation.to_area_id != target_area_id or
+                latest_recommendation.message != message
+            )
+
+            if should_save_recommendation:
+                latest_recommendation = MovementRecommendation(
+                    user_id=current_user_id,
+                    cattle_lot_id=lot.id,
+                    from_area_id=current_area.id,
+                    to_area_id=target_area_id,
+                    action_type=action,
+                    message=message
+                )
+                db.session.add(latest_recommendation)
+                db.session.commit()
+
             recommendations.append({
+                "id": latest_recommendation.id if latest_recommendation else None,
                 "date": datetime.utcnow().isoformat(),
                 "action": action,
-                "message": message
+                "message": message,
+                "from_area_id": current_area.id,
+                "to_area_id": target_area_id
             })
 
     return jsonify({

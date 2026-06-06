@@ -16,15 +16,15 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f7f9f4]">
       {/* Top navigation */}
-      <header className="bg-white border-b border-gray-200 px-6 flex items-center justify-between h-14 shrink-0 z-20">
+      <header className="bg-white border-b border-gray-200 px-3 sm:px-6 flex items-center justify-between h-14 shrink-0 z-20">
         {/* Brand */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="w-8 h-8 rounded-lg bg-green-700 flex items-center justify-center shrink-0">
             <Leaf size={16} className="text-white" />
           </div>
           <div className="leading-tight">
-            <p className="text-gray-800 leading-none">PastoCerto</p>
-            <p className="text-gray-400 text-xs leading-none mt-0.5">Gestão de Pastagens</p>
+            <p className="text-gray-800 leading-none text-sm sm:text-base">PastoCerto</p>
+            <p className="text-gray-400 text-xs leading-none mt-0.5 hidden sm:block">Gestão de Pastagens</p>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export default function App() {
           <button
             onClick={() => setScreen("dashboard")}
             className={`
-              flex items-center gap-2 px-4 py-1.5 rounded-md text-sm transition-all
+              flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 rounded-md text-sm transition-all
               ${screen === "dashboard"
                 ? "bg-white text-green-700 shadow-sm border border-gray-200"
                 : "text-gray-500 hover:text-gray-700"
@@ -41,12 +41,12 @@ export default function App() {
             `}
           >
             <LayoutDashboard size={15} />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </button>
           <button
             onClick={() => setScreen("planning")}
             className={`
-              flex items-center gap-2 px-4 py-1.5 rounded-md text-sm transition-all
+              flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 rounded-md text-sm transition-all
               ${screen === "planning"
                 ? "bg-white text-green-700 shadow-sm border border-gray-200"
                 : "text-gray-500 hover:text-gray-700"
@@ -54,7 +54,7 @@ export default function App() {
             `}
           >
             <CalendarRange size={15} />
-            Planejamento
+            <span className="hidden sm:inline">Planejamento</span>
           </button>
         </nav>
 
@@ -64,10 +64,10 @@ export default function App() {
             <Bell size={16} className="text-gray-500" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
           </button>
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors hidden sm:flex">
             <Settings size={16} className="text-gray-500" />
           </button>
-          <div className="ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center">
+          <div className="ml-1 sm:ml-2 w-7 h-7 rounded-full bg-green-700 flex items-center justify-center">
             <span className="text-white text-xs">JV</span>
           </div>
         </div>
@@ -80,3 +80,4 @@ export default function App() {
     </div>
   );
 }
+
