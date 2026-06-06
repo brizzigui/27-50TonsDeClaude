@@ -161,7 +161,7 @@ export function Planning() {
           <Calendar size={16} className="text-green-700" />
           <span className="text-gray-500 text-sm">Próximas ações</span>
         </div>
-        <h2 className="text-gray-800">Timeline de Manejo</h2>
+        <h2 className="text-gray-800">Cronograma de Manejo</h2>
       </div>
 
       {/* Filter chips */}
@@ -264,7 +264,7 @@ export function Planning() {
         className="lg:hidden flex items-center gap-1.5 px-4 py-2.5 text-sm text-green-700 bg-white border-b border-gray-100"
       >
         <ChevronDown size={14} className="rotate-90" />
-        Voltar à Timeline
+        Voltar ao Cronograma
       </button>
 
       <div className="px-4 sm:px-6 py-4 sm:py-5 bg-white border-b border-gray-100">
@@ -272,7 +272,7 @@ export function Planning() {
           <TrendingUp size={16} className="text-green-700" />
           <span className="text-gray-500 text-sm">Projeção financeira</span>
         </div>
-        <h2 className="text-gray-800">Dashboard de Ganho de Peso</h2>
+        <h2 className="text-gray-800">Painel de Ganho de Peso</h2>
       </div>
 
       <div className="flex-1 p-4 sm:p-6 space-y-5">
@@ -432,7 +432,7 @@ export function Planning() {
             }`}
           >
             <Calendar size={14} className="inline mr-1.5" />
-            Timeline
+            Cronograma
           </button>
           <button
             onClick={() => setMobileTab("analytics")}
@@ -443,7 +443,7 @@ export function Planning() {
             }`}
           >
             <TrendingUp size={14} className="inline mr-1.5" />
-            Analytics
+            Análises
           </button>
         </div>
 

@@ -41,7 +41,7 @@ export default function App() {
             `}
           >
             <LayoutDashboard size={15} />
-            <span className="hidden sm:inline">Dashboard</span>
+            <span className="hidden sm:inline">Painel</span>
           </button>
           <button
             onClick={() => setScreen("planning")}
