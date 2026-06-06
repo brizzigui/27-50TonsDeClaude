@@ -309,9 +309,10 @@ export function Planning({ updateTrigger = 0 }: PlanningProps) {
   function BiomassTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; payload: any }>; label?: string }) {
     if (!active || !payload?.length) return null;
     const point = payload[0];
+    const weekLabel = typeof label === "string" ? label.replace(/^Sem /, "Semana ") : label;
     return (
       <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
-        <p className="text-gray-600 mb-2">{label}</p>
+        <p className="text-gray-600 mb-2">{weekLabel}</p>
         <div className="flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${point.payload.occupied ? "bg-amber-500" : "bg-emerald-500"}`} />
           <span className="text-gray-500">Biomassa:</span>
@@ -338,21 +339,26 @@ export function Planning({ updateTrigger = 0 }: PlanningProps) {
   const pasturePanel = (
     <div className="flex-1 p-4 sm:p-6 space-y-5">
       {/* Paddock selector */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {areaOptions.map((area) => (
-          <button
-            key={area.id}
-            onClick={() => setSelectedAreaId(area.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-all border ${
-              selectedAreaId === area.id
-                ? "bg-green-50 text-green-700 border-green-200 shadow-sm"
-                : "bg-white text-gray-500 border-gray-100 hover:border-gray-300"
-            }`}
-          >
-            <Leaf size={13} />
-            {area.name}
-          </button>
-        ))}
+      <div className="space-y-2">
+        <p className="px-0.5 text-xs font-medium uppercase tracking-wide text-gray-400">
+          Área selecionada
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {areaOptions.map((area) => (
+            <button
+              key={area.id}
+              onClick={() => setSelectedAreaId(area.id)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm whitespace-nowrap transition-all ${
+                selectedAreaId === area.id
+                  ? "bg-green-50 text-green-700 border-green-200 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-100 hover:border-gray-300"
+              }`}
+            >
+              <Leaf size={13} />
+              {area.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -395,8 +401,16 @@ export function Planning({ updateTrigger = 0 }: PlanningProps) {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
           <div>
-            <h3 className="text-gray-800 text-sm sm:text-base">Massa Verde ao Longo do Tempo</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{selectedAreaName} · biomassa (kg/ha) por semana</p>
+            <h3 className="flex flex-wrap items-baseline gap-2 text-gray-800 text-sm sm:text-base">
+              <span>Massa Verde ao Longo do Tempo</span>
+              {selectedAreaName && (
+                <>
+                  <span className="text-gray-300">-</span>
+                  <span className="text-lg font-semibold text-green-700">{selectedAreaName}</span>
+                </>
+              )}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">Biomassa (kg/ha) por semana</p>
           </div>
           <div className="flex gap-3">
             <div className="flex items-center gap-1.5">
