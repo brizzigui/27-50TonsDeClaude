@@ -10,7 +10,9 @@
 | **João Pedro Righi**      | Desenvolvedor Full Stack |
 | **Luís Gustavo Tozevich** | Analista de Qualidade    |
 
+## Vídeo
 
+- Link: https://youtu.be/B95AzIRW2eI
 
 ## Qual a nossa visão?
 
