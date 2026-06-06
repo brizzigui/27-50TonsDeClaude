@@ -6,7 +6,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
 CORS(app, origins='*')
 
@@ -300,6 +302,7 @@ def update_area():
                 )
                 
                 ai_response = response.choices[0].message.content.strip()
+                print(f"AI Response {ai_response}")
                 
                 import re
                 match = re.search(r'\b\d{1,3}\b', ai_response)
