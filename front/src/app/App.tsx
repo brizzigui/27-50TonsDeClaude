@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, CalendarRange, Leaf, Bell, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Leaf, Settings, LogOut } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { Planning } from "./components/Planning";
 import { Login } from "./components/Login";
@@ -102,13 +102,9 @@ export default function App() {
 
         {/* Right actions */}
         <div className="flex items-center gap-1">
-          <button className="relative w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-            <Bell size={16} className="text-gray-500" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
-          </button>
           <button 
             onClick={() => setSettingsOpen(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors hidden sm:flex cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <Settings size={16} className="text-gray-500" />
           </button>
